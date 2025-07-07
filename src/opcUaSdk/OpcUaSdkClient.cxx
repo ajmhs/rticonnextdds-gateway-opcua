@@ -389,7 +389,7 @@ bool Client::delete_monitored_item(
     return retcode == UA_STATUSCODE_GOOD ? true : false;
 }
 
-void Client::run_iterate(uint16_t timeout)
+uint32_t Client::run_iterate(uint16_t timeout)
 {
     UA_StatusCode retcode = UA_STATUSCODE_GOOD;
     {
@@ -400,6 +400,8 @@ void Client::run_iterate(uint16_t timeout)
     // The sleep corresponding to the timeout is actually performed by the
     // wrapper implementation to avoid blocking the OPC UA Client
     std::this_thread::sleep_for(std::chrono::milliseconds(timeout));
+
+    return retcode;
 }
 
 }}}}  // namespace rti::opcua::sdk::client

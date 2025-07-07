@@ -56,6 +56,7 @@ OpcUaConnection::OpcUaConnection(
     opcua_client_async_thread_ = std::thread(
             run_opcua_client,
             std::ref(opcua_client_),
+            std::ref(adapter_property_.shutdown_hook()),
             std::ref(opcua_client_connected_),
             run_async_timeout_);
 }
@@ -141,12 +142,14 @@ rti::opcua::sdk::client::Client& OpcUaConnection::connection_client()
 
 void OpcUaConnection::run_opcua_client(
             opcua::sdk::client::Client& opcua_client,
+            rti::ddsopcua::utils::ServiceShutdownHook& shutdown_hook,
             bool& client_connected,
             const uint16_t timeout)
 {
     while (client_connected) {
         opcua_client.run_iterate(timeout);
     }
+    shutdown_hook.shutdown_service();
 }
 
 }}}  // namespace rti::ddsopcua::adapters

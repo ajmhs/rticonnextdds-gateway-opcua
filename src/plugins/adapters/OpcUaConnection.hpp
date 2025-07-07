@@ -58,6 +58,7 @@ public:
 private:
     static void run_opcua_client(
             opcua::sdk::client::Client& opcua_client,
+            rti::ddsopcua::utils::ServiceShutdownHook& shutdown_hook,
             bool& client_connected,
             const uint16_t timeout);
 
