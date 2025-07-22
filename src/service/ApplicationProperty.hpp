@@ -79,7 +79,6 @@ private:
     bool is_version_requested_;
     bool is_available_configuration_list_requested_;
     std::string program_name_;
-    rti::config::Verbosity gateway_verbosity_;
     rti::config::Verbosity dds_verbosity_;
     rti::config::PrintFormat log_format_;
     int32_t max_objects_per_thread_;

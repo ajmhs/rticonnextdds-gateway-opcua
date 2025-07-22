@@ -81,6 +81,8 @@ public:
     void validate(RTIXMLUTILSObject* xml_object);
 
     const std::string& service_tag();
+    const std::string& opcua2ddsbridge_tag();
+    const std::string& include_tag();
 
     // Static strings for configuration files
     static const std::string& path_to_module_xml();
@@ -89,8 +91,12 @@ public:
     static const std::string& user_configuration_file_name();
 
 private:
-    void process_loaded_xml(RTIXMLUTILSObject* xml_object);
 
+    void parse_include_files(const std::string& source_file);
+    void parse_service_includes(const std::string& source_file);
+    void parse_bridge_includes(RTIXMLUTILSObject* service_object, const std::string& source_file);
+    
+    void process_loaded_xml(RTIXMLUTILSObject* xml_object);
 
 private:
     RTIXMLUTILSObject* xml_root_;
@@ -100,6 +106,7 @@ private:
     std::unique_ptr<RTIXMLUTILSTransformer, void (*)(RTIXMLUTILSTransformer*)>
             transformer_;
     const std::map<std::string, std::string>& user_env_;
+    rti::config::Verbosity verbosity_;
 };
 
 }}}  // namespace rti::ddsopcua::config

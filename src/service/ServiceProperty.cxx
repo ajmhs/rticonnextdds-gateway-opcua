@@ -31,9 +31,9 @@ GatewayProperty::GatewayProperty()
           service_name_(""),
           executable_path_(""),
           enforce_xsd_validation_(true),
-          ignore_default_files_(false)
-{
-}
+          ignore_default_files_(false),
+          verbosity_(rti::ddsopcua::log::service_verbosity_from_level(1))
+{ }
 
 GatewayProperty::GatewayProperty(
         const std::string& service_name,
@@ -42,10 +42,9 @@ GatewayProperty::GatewayProperty(
           service_name_(service_name),
           executable_path_(""),
           enforce_xsd_validation_(true),
-          ignore_default_files_(false)
-{
-}
-
+          ignore_default_files_(false),
+          verbosity_(rti::ddsopcua::log::service_verbosity_from_level(1))
+{ }
 
 GatewayProperty& GatewayProperty::cfg_file(const std::string& file)
 {
@@ -92,7 +91,6 @@ bool GatewayProperty::ignore_default_files() const
     return ignore_default_files_;
 }
 
-
 const std::map<std::string, std::string>& GatewayProperty::user_environment()
         const
 {
@@ -109,6 +107,17 @@ GatewayProperty& GatewayProperty::user_environment(
 {
     user_env_ = user_environment;
 
+    return *this;
+}
+
+rti::config::Verbosity GatewayProperty::verbosity() const
+{
+    return verbosity_;
+}
+
+GatewayProperty& GatewayProperty::verbosity(rti::config::Verbosity value)
+{
+    verbosity_ = value;
     return *this;
 }
 

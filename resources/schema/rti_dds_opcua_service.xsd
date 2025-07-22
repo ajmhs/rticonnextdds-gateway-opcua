@@ -596,7 +596,47 @@
         </xs:attribute>
     </xs:complexType>
 
+    <xs:simpleType name="includeBaseType">
+        <xs:restriction base="xs:string">
+            <xs:annotation>
+                <xs:documentation>
+                    <![CDATA[ 
+                    relative : Relative to the current file
+                    root : Relative to the root of the project
+                    absolute : Absolute path
+                    ]]>
+                </xs:documentation>
+            </xs:annotation>
+            <xs:enumeration value="relative"/>
+            <xs:enumeration value="root"/>
+            <xs:enumeration value="absolute"/>
+        </xs:restriction>
+    </xs:simpleType>
 
+    <xs:simpleType name="includeMissingAction">
+        <xs:restriction base="xs:string">
+            <xs:annotation>
+                <xs:documentation>
+                    <![CDATA[ 
+                    ignore : Ignore missing include files
+                    log : Log a warning if the include file is missing
+                    error : Create an error condition if the include file is missing
+                    ]]>
+                </xs:documentation>
+            </xs:annotation>
+            <xs:enumeration value="ignore"/>
+            <xs:enumeration value="log"/>
+            <xs:enumeration value="error"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <!-- Include initial type of file -->    
+    <xs:complexType name="includeFileType">
+        <xs:attribute name="file" type="xs:string" use="required"/>
+        <xs:attribute name="base" type="includeBaseType" use="optional" default="relative"/>
+        <xs:attribute name="onMissing" type="includeMissingAction" use="optional" default="log"/>
+    </xs:complexType>
+    
     <!-- OPC UA to DDS Bridge -->
     <xs:complexType name="opcua2DdsBridge">
         <xs:sequence>
@@ -664,6 +704,19 @@
                             Sets the SubscriberQos of the DDS Subscriber for all
                             the DDS DataReaders associated with DDS Inputs
                             within this OPC UA to DDS Bridge.
+                            ]]>
+                        </xs:documentation>
+                    </xs:annotation>
+                </xs:element>
+                <xs:element name="include"
+                            minOccurs="0"
+                            maxOccurs="unbounded"
+                            type="includeFileType">
+                    <xs:annotation>
+                        <xs:documentation>
+                            <![CDATA[
+                            Include an external file at bridge scope containing
+                            publication and subscription sections
                             ]]>
                         </xs:documentation>
                     </xs:annotation>
@@ -861,6 +914,19 @@
                         </xs:documentation>
                     </xs:annotation>
                 </xs:element>
+                <xs:element name="include"
+                            minOccurs="0"
+                            maxOccurs="unbounded"
+                            type="includeFileType">
+                    <xs:annotation>
+                        <xs:documentation>
+                            <![CDATA[
+                            Includes an external file at service scope for this section
+                            containing domain participants
+                            ]]>
+                        </xs:documentation>
+                    </xs:annotation>
+                </xs:element>
             </xs:choice>
         </xs:sequence>
         <xs:attribute name="name" type="xs:string" use="required">
@@ -916,6 +982,19 @@
                             Configures an OPC UA/DDS Gateway. More than one
                             OPC UA/DDS Gateway configuration is allowed, but
                             only one configuration can be loaded at runtime.
+                            ]]>
+                        </xs:documentation>
+                    </xs:annotation>
+                </xs:element>
+                <xs:element name="include"
+                            minOccurs="0"
+                            maxOccurs="unbounded"
+                            type="includeFileType">
+                    <xs:annotation>
+                        <xs:documentation>
+                            <![CDATA[
+                            Includes an external file at global scope, i.e for
+                            importing types that apply across the entire system
                             ]]>
                         </xs:documentation>
                     </xs:annotation>
