@@ -59,6 +59,12 @@ STATIC_CONST_STRING_DEFINITION(
         "opcua_to_dds_bridge");
 STATIC_CONST_STRING_DEFINITION(XmlSupport, include_tag, "include");
 
+STATIC_CONST_STRING_DEFINITION(XmlSupport, service_variables_tag, "configuration_variables");
+STATIC_CONST_STRING_DEFINITION(XmlSupport, variables_element_tag, "element");
+STATIC_CONST_STRING_DEFINITION(XmlSupport, bridge_publication_tag, "publication");
+STATIC_CONST_STRING_DEFINITION(XmlSupport, bridge_subscription_tag, "subscription");
+
+
 XmlSupport::XmlSupport(
         const rti::ddsopcua::GatewayProperty& properties,
         bool validate_on_parse)
@@ -280,7 +286,7 @@ void XmlSupport::parse_include_files(const std::string& source_file)
         include_element = RTIXMLUTILSObject_getNextSiblingWithTag(
                 include_element,
                 include_tag().c_str());
-    }
+    }    
 
     // Now parse includes at the service scope
     parse_service_includes(source_file);
@@ -357,16 +363,13 @@ static void parse_variables(RTIXMLUTILSObject *element, stringmap_t& variables)
     RTIXMLUTILSObject *config_vars_element =
             RTIXMLUTILSObject_getFirstChildWithTag(
                     element,
-                    "configuration_variables");
+                    XmlSupport::service_variables_tag().c_str());
 
     if (config_vars_element != nullptr) {
-        // create a map to hold the variables
-        std::map<std::string, std::string> variables;
-
         RTIXMLUTILSObject *variable_element =
                 RTIXMLUTILSObject_getFirstChildWithTag(
                         config_vars_element,
-                        "element");
+                        XmlSupport::variables_element_tag().c_str()); 
 
         while (variable_element != nullptr) {
             RTIXMLUTILSObject *variable_name = RTIXMLUTILSObject_getFirstChildWithTag(variable_element, "name");
@@ -383,8 +386,48 @@ static void parse_variables(RTIXMLUTILSObject *element, stringmap_t& variables)
 
             variable_element = RTIXMLUTILSObject_getNextSiblingWithTag(
                     variable_element,
-                    "element");
+                    XmlSupport::variables_element_tag().c_str());
         }
+    }
+}
+
+static bool substitute_variables(
+        const std::string& text,
+        const stringmap_t& variables,
+        std::string& result)
+{
+    
+    bool changed = false;
+    result = text;
+    for (const auto& var : variables) {
+        std::string placeholder = "${" + var.first + "}";
+        size_t pos = result.find(placeholder);
+        while (pos != std::string::npos) {
+            result.replace(pos, placeholder.length(), var.second);
+            changed = true;
+
+            pos = result.find(placeholder, pos + var.second.length());            
+        }
+    }
+    return changed;
+}
+
+static void process_target_variables(
+        RTIXMLUTILSObject *target,
+        const stringmap_t& variables)
+{
+    std::string substituted_text;
+    if (RTIXMLUTILSObject_isText(target)) {
+        const char *text = RTIXMLUTILSObject_getText(target);
+        if (text && substitute_variables(text, variables, substituted_text)) {
+            RTIXMLUTILSObject_setText(target, substituted_text.c_str());
+        }
+    }
+ 
+    // Recursively process child elements
+    for (auto* child = RTIXMLUTILSObject_getFirstChild(target); 
+         child; child = RTIXMLUTILSObject_getNextSibling(child)) {
+        process_target_variables(child, variables);
     }
 }
 
@@ -394,8 +437,16 @@ static void resolve_target_variables(RTIXMLUTILSObject *target)
     stringmap_t variables;
     parse_variables(target, variables);
     if (!variables.empty()) {
-
-        // TODO: replace the variables in the target children
+        
+        // Process all child elements of target except the variables element
+        for (auto* child = RTIXMLUTILSObject_getFirstChild(target); 
+            child; child = RTIXMLUTILSObject_getNextSibling(child)) {
+            
+            const char *tag_name = RTIXMLUTILSObject_getTagName(child);
+            if (tag_name == nullptr || strcmp(tag_name, "configuration_variables") != 0) {
+                process_target_variables(child, variables);
+            }
+        }
     }
 }
 
@@ -417,7 +468,7 @@ void XmlSupport::resolve_variables()
             RTIXMLUTILSObject *publication_element =
                 RTIXMLUTILSObject_getFirstChildWithTag(
                     bridge_element,
-                    "publication");
+                    bridge_publication_tag().c_str());
 
             while(publication_element != nullptr) {
                 // Resolve variables in the publication element
@@ -427,13 +478,13 @@ void XmlSupport::resolve_variables()
                 publication_element =
                     RTIXMLUTILSObject_getNextSiblingWithTag(
                         publication_element,
-                        "publication");
+                        bridge_publication_tag().c_str());
             }
 
             RTIXMLUTILSObject *subscription_element =
                 RTIXMLUTILSObject_getFirstChildWithTag(
                     bridge_element,
-                    "subscription");
+                    bridge_subscription_tag().c_str());
 
             while(publication_element != nullptr) {
                 // Resolve variables in the subscription element
@@ -443,7 +494,7 @@ void XmlSupport::resolve_variables()
                 publication_element =
                     RTIXMLUTILSObject_getNextSiblingWithTag(
                         subscription_element,
-                        "subscription");
+                        bridge_subscription_tag().c_str());
             }
 
             // Find the next bridge element
@@ -535,11 +586,9 @@ XmlSupport::native_xmlutilsobject XmlSupport::to_router_configuration()
                 "Router");
     }
 
-    // check the gateway verbosity level to decide whether to log the
+    // check the gateway verbosity level to decide whether to dump the
     // transformed XML
     if (verbosity_ >= rti::config::Verbosity::WARNING) {
-        // GATEWAYLog_local(&DDSOPCUA_LOG_ANY_s,
-        // RTIXMLUTILSObject_toString(transformed));
         printf("%s\n", RTIXMLUTILSObject_toString(transformed));
     }
 

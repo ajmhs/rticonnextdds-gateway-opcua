@@ -83,6 +83,11 @@ public:
     const std::string& service_tag();
     const std::string& opcua2ddsbridge_tag();
     const std::string& include_tag();
+    static const std::string& service_variables_tag();
+    static const std::string& variables_element_tag();
+    const std::string& bridge_publication_tag();
+    const std::string& bridge_subscription_tag();
+
 
     // Static strings for configuration files
     static const std::string& path_to_module_xml();

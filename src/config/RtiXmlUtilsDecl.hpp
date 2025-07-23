@@ -117,6 +117,13 @@ extern struct RTIXMLUTILSObject* RTIXMLUTILSObject_copyAsChild(
         struct RTIXMLUTILSObject* self,
         struct RTIXMLUTILSObject* element);
 
+extern RTIBool RTIXMLUTILSObject_isText(
+        struct RTIXMLUTILSObject* self);
+
+extern void RTIXMLUTILSObject_setText(
+        struct RTIXMLUTILSObject* self,
+        const char* elementText);        
+
 extern RTIBool RTIXMLUTILSParser_parseStringArray(
         struct RTIXMLUTILSObject** root,
         const char* xmlStringArray[],
