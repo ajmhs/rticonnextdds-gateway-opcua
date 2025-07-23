@@ -95,7 +95,7 @@ private:
     void parse_include_files(const std::string& source_file);
     void parse_service_includes(const std::string& source_file);
     void parse_bridge_includes(RTIXMLUTILSObject* service_object, const std::string& source_file);
-    
+    void resolve_variables();
     void process_loaded_xml(RTIXMLUTILSObject* xml_object);
 
 private:

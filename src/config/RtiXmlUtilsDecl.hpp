@@ -81,6 +81,9 @@ extern const char* RTIXMLUTILSObject_getAttribute(
         struct RTIXMLUTILSObject* self,
         const char* attributeName);
 
+extern struct RTIXMLUTILSObject* RTIXMLUTILSObject_getRoot(
+        struct RTIXMLUTILSObject* self);
+
 extern struct RTIXMLUTILSObject* RTIXMLUTILSObject_getFirstChild(
         struct RTIXMLUTILSObject* self);
 

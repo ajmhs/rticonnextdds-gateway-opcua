@@ -127,6 +127,9 @@ void XmlSupport::parse_file(const std::string& filename)
 
     // Manage any include definitions in the xml
     parse_include_files(filename);
+
+    // Manage any internal variables used in the xml
+    resolve_variables();
 }
 
 void XmlSupport::parse_string_array(
@@ -219,9 +222,9 @@ static void process_include(
             &DDSOPCUA_LOG_PARSER_LOAD_FILE_s,
             normalized_file_name.c_str());
 
-    struct RTIXMLUTILSObject *included_xml_object = nullptr;
+    struct RTIXMLUTILSObject *incl_root = nullptr;
     if (!RTIXMLUTILSParser_parseUrlGroupList(
-                &included_xml_object,
+                &incl_root,
                 normalized_file_name.c_str())) {
         const char *on_missing =
                 RTIXMLUTILSObject_getAttribute(include_element, "onMissing");
@@ -242,13 +245,18 @@ static void process_include(
                  // to throw
     }
 
-    // merge
-    if (!RTIXMLUTILSParser_mergeRoot(merge_target, included_xml_object)) {
-        error = true;
+    // Iterate over all the children of the include element and copy them to the merge target
+    RTIXMLUTILSObject *incl_child = RTIXMLUTILSObject_getFirstChild(incl_root);
+    while (incl_child != nullptr) {
+        if (!RTIXMLUTILSObject_copyAsChild(merge_target,incl_child)) {
+            error = true;
+            break;
+        }        
+        incl_child = RTIXMLUTILSObject_getNextSibling(incl_child);
     }
 
     // Free the included XML object
-    RTIXMLUTILSParser_freeDom(included_xml_object);
+    RTIXMLUTILSParser_freeDom(incl_root);
 
     // If there was an error, throw an exception
     if (error) {
@@ -338,6 +346,116 @@ void XmlSupport::parse_bridge_includes(
         bridge_element = RTIXMLUTILSObject_getNextSiblingWithTag(
                 bridge_element,
                 opcua2ddsbridge_tag().c_str());
+    }
+}
+
+using stringmap_t = std::map<std::string, std::string>;
+
+static void parse_variables(RTIXMLUTILSObject *element, stringmap_t& variables)
+{
+    // Find the configuration_variables element, if it exists
+    RTIXMLUTILSObject *config_vars_element =
+            RTIXMLUTILSObject_getFirstChildWithTag(
+                    element,
+                    "configuration_variables");
+
+    if (config_vars_element != nullptr) {
+        // create a map to hold the variables
+        std::map<std::string, std::string> variables;
+
+        RTIXMLUTILSObject *variable_element =
+                RTIXMLUTILSObject_getFirstChildWithTag(
+                        config_vars_element,
+                        "element");
+
+        while (variable_element != nullptr) {
+            RTIXMLUTILSObject *variable_name = RTIXMLUTILSObject_getFirstChildWithTag(variable_element, "name");
+            RTIXMLUTILSObject *variable_value = RTIXMLUTILSObject_getFirstChildWithTag(variable_element, "value");
+
+            if (variable_name != nullptr && variable_value != nullptr) {                
+                const char *name = RTIXMLUTILSObject_getText(variable_name);
+                const char *value = RTIXMLUTILSObject_getText(variable_value);
+
+                if (name != nullptr && value != nullptr) {                    
+                    variables[name] = value;
+                } 
+            }
+
+            variable_element = RTIXMLUTILSObject_getNextSiblingWithTag(
+                    variable_element,
+                    "element");
+        }
+    }
+}
+
+static void resolve_target_variables(RTIXMLUTILSObject *target)
+{
+    // Get the variables from the target element
+    stringmap_t variables;
+    parse_variables(target, variables);
+    if (!variables.empty()) {
+
+        // TODO: replace the variables in the target children
+    }
+}
+
+void XmlSupport::resolve_variables()
+{
+    // Resolve variables in the XML
+    RTIXMLUTILSObject *service_element = RTIXMLUTILSObject_getFirstChildWithTag(
+            xml_root_,
+            service_tag().c_str());
+
+    while (service_element != nullptr) {
+
+        RTIXMLUTILSObject *bridge_element = RTIXMLUTILSObject_getFirstChildWithTag(
+            service_element,
+            opcua2ddsbridge_tag().c_str());
+
+        while (bridge_element != nullptr) {
+
+            RTIXMLUTILSObject *publication_element =
+                RTIXMLUTILSObject_getFirstChildWithTag(
+                    bridge_element,
+                    "publication");
+
+            while(publication_element != nullptr) {
+                // Resolve variables in the publication element
+                resolve_target_variables(publication_element);
+
+                // find next publication element
+                publication_element =
+                    RTIXMLUTILSObject_getNextSiblingWithTag(
+                        publication_element,
+                        "publication");
+            }
+
+            RTIXMLUTILSObject *subscription_element =
+                RTIXMLUTILSObject_getFirstChildWithTag(
+                    bridge_element,
+                    "subscription");
+
+            while(publication_element != nullptr) {
+                // Resolve variables in the subscription element
+                resolve_target_variables(subscription_element);
+
+                // find next publication element
+                publication_element =
+                    RTIXMLUTILSObject_getNextSiblingWithTag(
+                        subscription_element,
+                        "subscription");
+            }
+
+            // Find the next bridge element
+            bridge_element = RTIXMLUTILSObject_getNextSiblingWithTag(
+                bridge_element,
+                opcua2ddsbridge_tag().c_str());
+        }
+
+        // Find the next service element
+        service_element = RTIXMLUTILSObject_getNextSiblingWithTag(
+                service_element, 
+                service_tag().c_str());
     }
 }
 
