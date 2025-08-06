@@ -35,6 +35,14 @@ public:
             std::map<std::string, std::string>& sample_selectors,
             RTIXMLUTILSObject* xml_root,
             const std::string& dds_input_xml_fqn);
+
+using stringpair_t = std::pair<std::string, std::string>;
+using stringpairmap_t = std::map<std::string, stringpair_t>;
+    
+    static void get_sample_locators(
+            stringpairmap_t& sample_locators,
+            RTIXMLUTILSObject* xml_root,
+            const std::string& dds_input_xml_fqn);
 };
 
 class XmlOpcUaClient {

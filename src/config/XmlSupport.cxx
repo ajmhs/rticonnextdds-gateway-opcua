@@ -486,12 +486,12 @@ void XmlSupport::resolve_variables()
                     bridge_element,
                     bridge_subscription_tag().c_str());
 
-            while(publication_element != nullptr) {
+            while(subscription_element != nullptr) {
                 // Resolve variables in the subscription element
                 resolve_target_variables(subscription_element);
 
-                // find next publication element
-                publication_element =
+                // find next subscription element
+                subscription_element =
                     RTIXMLUTILSObject_getNextSiblingWithTag(
                         subscription_element,
                         bridge_subscription_tag().c_str());

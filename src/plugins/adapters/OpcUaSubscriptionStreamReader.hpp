@@ -94,6 +94,7 @@ private:
     bool monitoring_;
     opcua::sdk::client::SubscriptionProperty subscription_property_;
     std::vector<opcua::sdk::client::MonitoredNodeAttribute> node_attributes_;
+    std::map<std::string, std::pair<std::string, std::string> > sample_locators_;
 };
 
 }}}  // namespace rti::ddsopcua::adapters

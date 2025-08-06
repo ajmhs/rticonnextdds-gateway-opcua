@@ -96,6 +96,26 @@
                     </xs:annotation>
                 </xs:element>
             </xs:choice>
+            <xs:choice minOccurs="0" maxOccurs="1">
+                <xs:element name="dds_sample_selector_ref"
+                        type="xs:string">
+                    <xs:annotation>
+                        <xs:documentation>
+                            <![CDATA[Name of the DDS sample selector with which
+                            the NodeAttribute is associated.]]>
+                        </xs:documentation>
+                    </xs:annotation>
+                </xs:element>
+                <xs:element name="dds_sample_locator_ref"
+                        type="xs:string">
+                    <xs:annotation>
+                        <xs:documentation>
+                            <![CDATA[Name of the DDS sample locator with which
+                            the NodeAttribute is associated.]]>
+                        </xs:documentation>
+                    </xs:annotation>
+                </xs:element>
+            </xs:choice>
         </xs:sequence>
         <xs:attribute name="dds_topic_field_name"
                       type="xs:string"
@@ -106,14 +126,15 @@
                     the NodeAttribute is associated.]]>
                 </xs:documentation>
             </xs:annotation>
-        </xs:attribute>
+        </xs:attribute>        
         <xs:attribute name="dds_sample_selector_ref"
                       type="xs:string"
                       use="optional">
             <xs:annotation>
                 <xs:documentation>
                     <![CDATA[Name of the DDS sample selector with which
-                    the NodeAttribute is associated.]]>
+                    the NodeAttribute is associated. 
+                    DEPRECATED IN FAVOUR OF ELEMENT TYPE OF SAME NAME]]>
                 </xs:documentation>
             </xs:annotation>
         </xs:attribute>
@@ -330,6 +351,59 @@
         </xs:sequence>
     </xs:complexType>
 
+    <xs:complexType name="ddsSampleLocator">
+        <xs:sequence>
+            <xs:element name="field_name" type="xs:string">
+                <xs:annotation>
+                    <xs:documentation>
+                        <![CDATA[
+                        Name of the field to write value to
+                        ]]>
+                    </xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="value" type="xs:string">
+                <xs:annotation>
+                    <xs:documentation>
+                        <![CDATA[
+                        Value to write to field_name
+                        ]]>
+                    </xs:documentation>
+                </xs:annotation>
+            </xs:element>
+        </xs:sequence>
+        <xs:attribute name="name"
+                      type="xs:string"
+                      use="required">
+            <xs:annotation>
+                <xs:documentation>
+                    <![CDATA[
+                    Sample selector name.
+                    ]]>
+                </xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+    </xs:complexType>    
+
+    <xs:complexType name="ddsSampleLocatorSeq">
+        <xs:sequence>
+            <xs:element name="locator"
+                        type="ddsSampleLocator"
+                        minOccurs="0"
+                        maxOccurs="unbounded">
+                <xs:annotation>
+                    <xs:documentation>
+                    <![CDATA[
+                    Defines a sample locator. A sample locator provides a
+                    mechanism to write an additional a DDS field when 
+                    publishing data from the OPC UA gateway onto the databus.
+                    ]]>
+                    </xs:documentation>
+                </xs:annotation>
+            </xs:element>
+        </xs:sequence>
+    </xs:complexType>
+
     <!-- DDS Endpoint -->
     <xs:complexType name="ddsEndpoint">
         <xs:sequence>
@@ -426,6 +500,21 @@
         <xs:complexContent>
             <xs:extension base="ddsEndpoint">
                 <xs:sequence>
+                    <xs:element name="sample_locators"
+                        type="ddsSampleLocatorSeq"
+                        minOccurs="0"
+                        maxOccurs="1">
+                        <xs:annotation>
+                            <xs:documentation>
+                                <![CDATA[
+                                Pre-registers a number of sample locators
+                                that allow choosing which additional DDS 
+                                element is written when writing a sample 
+                                from OPC UA data.
+                                ]]>
+                            </xs:documentation>
+                        </xs:annotation>
+                    </xs:element>                        
                     <xs:element name="datawriter_qos"
                                 type="dataWriterQosProfileChild"
                                 minOccurs="0">
