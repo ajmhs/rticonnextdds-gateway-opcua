@@ -192,14 +192,14 @@ void XmlSupport::parse_types_string_array(
 }
 
 static void process_include(
-        RTIXMLUTILSObject *include_element,
+        RTIXMLUTILSObject *inc_ele,
         const std::string& source_file,
         RTIXMLUTILSObject *merge_target)
 {
     bool error = false;
 
     const char *file_name =
-            RTIXMLUTILSObject_getAttribute(include_element, "file");
+            RTIXMLUTILSObject_getAttribute(inc_ele, "file");
 
     if (file_name == nullptr) {
         RTI_THROW_GATEWAY_EXCEPTION(
@@ -208,7 +208,7 @@ static void process_include(
     }
 
     // if the include element has a base attribute, use it
-    const char *base = RTIXMLUTILSObject_getAttribute(include_element, "base");
+    const char *base = RTIXMLUTILSObject_getAttribute(inc_ele, "base");
 
     std::string normalized_file_name;
     if (base == nullptr || (base != nullptr && strcmp(base, "relative") == 0)) {
@@ -233,7 +233,7 @@ static void process_include(
                 &incl_root,
                 normalized_file_name.c_str())) {
         const char *on_missing =
-                RTIXMLUTILSObject_getAttribute(include_element, "onMissing");
+                RTIXMLUTILSObject_getAttribute(inc_ele, "onMissing");
 
         if (on_missing == nullptr
             || (on_missing != nullptr && strcmp(on_missing, "log") == 0)) {
@@ -252,13 +252,13 @@ static void process_include(
     }
 
     // Iterate over all the children of the include element and copy them to the merge target
-    RTIXMLUTILSObject *incl_child = RTIXMLUTILSObject_getFirstChild(incl_root);
-    while (incl_child != nullptr) {
-        if (!RTIXMLUTILSObject_copyAsChild(merge_target,incl_child)) {
+    for (auto *incl_child = RTIXMLUTILSObject_getFirstChild(incl_root);
+         incl_child;
+         incl_child = RTIXMLUTILSObject_getNextSibling(incl_child)) {
+        if (!RTIXMLUTILSObject_copyAsChild(merge_target, incl_child)) {
             error = true;
             break;
-        }        
-        incl_child = RTIXMLUTILSObject_getNextSibling(incl_child);
+        }
     }
 
     // Free the included XML object
@@ -276,51 +276,44 @@ static void process_include(
 void XmlSupport::parse_include_files(const std::string& source_file)
 {
     // Parse <include> elements at the global scope
-    RTIXMLUTILSObject *include_element = RTIXMLUTILSObject_getFirstChildWithTag(
-            xml_root_,
-            include_tag().c_str());
+    for (auto *inc_ele = RTIXMLUTILSObject_getFirstChildWithTag(
+                 xml_root_,
+                 include_tag().c_str());
+         inc_ele;
+         inc_ele = RTIXMLUTILSObject_getNextSiblingWithTag(
+                 inc_ele,
+                 include_tag().c_str())) {
+        process_include(inc_ele, source_file, xml_root_);
+    }
 
-    while (include_element != nullptr) {
-        process_include(include_element, source_file, xml_root_);
-
-        include_element = RTIXMLUTILSObject_getNextSiblingWithTag(
-                include_element,
-                include_tag().c_str());
-    }    
-
-    // Now parse includes at the service scope
+    // Parse includes at the service scope
     parse_service_includes(source_file);
 }
 
 void XmlSupport::parse_service_includes(const std::string& source_file)
 {
     // Parse <include> elements at the service scope
-    RTIXMLUTILSObject *service_element = RTIXMLUTILSObject_getFirstChildWithTag(
-            xml_root_,
-            service_tag().c_str());
+    for (auto *service = RTIXMLUTILSObject_getFirstChildWithTag(
+                 xml_root_,
+                 service_tag().c_str());
+         service;
+         service = RTIXMLUTILSObject_getNextSiblingWithTag(
+                 service,
+                 service_tag().c_str())) {
 
-    while (service_element != nullptr) {
-        RTIXMLUTILSObject *include_element =
-                RTIXMLUTILSObject_getFirstChildWithTag(
-                        service_element,
-                        include_tag().c_str());
+        // Parse <include> elements within the service element
+        for (auto *inc_ele = RTIXMLUTILSObject_getFirstChildWithTag(
+                     service,
+                     include_tag().c_str());
+             inc_ele;
+             inc_ele = RTIXMLUTILSObject_getNextSiblingWithTag(
+                     inc_ele,
+                     include_tag().c_str())) {
 
-        while (include_element != nullptr) {
-            process_include(include_element, source_file, service_element);
-
-            // Process next include element
-            include_element = RTIXMLUTILSObject_getNextSiblingWithTag(
-                    include_element,
-                    include_tag().c_str());
+            process_include(inc_ele, source_file, service);
         }
-
         // Process bridge includes for this service
-        parse_bridge_includes(service_element, source_file);
-
-        // Find the next service element
-        service_element = RTIXMLUTILSObject_getNextSiblingWithTag(
-                service_element,
-                service_tag().c_str());
+        parse_bridge_includes(service, source_file);
     }
 }
 
@@ -329,29 +322,25 @@ void XmlSupport::parse_bridge_includes(
         const std::string& source_file)
 {
     // Parse <include> elements at the bridge scope
-    RTIXMLUTILSObject *bridge_element = RTIXMLUTILSObject_getFirstChildWithTag(
-            service_object,
-            opcua2ddsbridge_tag().c_str());
+    for (auto *bridge_element = RTIXMLUTILSObject_getFirstChildWithTag(
+                 service_object,
+                 opcua2ddsbridge_tag().c_str());
+         bridge_element;
+         bridge_element = RTIXMLUTILSObject_getNextSiblingWithTag(
+                 bridge_element,
+                 opcua2ddsbridge_tag().c_str())) {
 
-    while (bridge_element != nullptr) {
-        RTIXMLUTILSObject *include_element =
-                RTIXMLUTILSObject_getFirstChildWithTag(
-                        bridge_element,
-                        include_tag().c_str());
+        // For each include element in the bridge
+        for (auto *inc_ele = RTIXMLUTILSObject_getFirstChildWithTag(
+                     bridge_element,
+                     include_tag().c_str());
+             inc_ele != nullptr;
+             inc_ele = RTIXMLUTILSObject_getNextSiblingWithTag(
+                     inc_ele,
+                     include_tag().c_str())) {
 
-        while (include_element != nullptr) {
-            process_include(include_element, source_file, bridge_element);
-
-            // Process next include element
-            include_element = RTIXMLUTILSObject_getNextSiblingWithTag(
-                    include_element,
-                    include_tag().c_str());
+            process_include(inc_ele, source_file, bridge_element);
         }
-
-        // Find the next bridge element
-        bridge_element = RTIXMLUTILSObject_getNextSiblingWithTag(
-                bridge_element,
-                opcua2ddsbridge_tag().c_str());
     }
 }
 
