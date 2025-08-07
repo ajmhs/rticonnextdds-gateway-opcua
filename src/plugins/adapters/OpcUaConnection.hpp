@@ -58,6 +58,7 @@ public:
 private:
     static void run_opcua_client(
             opcua::sdk::client::Client& opcua_client,
+            rti::ddsopcua::utils::ReconnectConfig& reconnect_cfg,
             rti::ddsopcua::utils::ServiceShutdownHook& shutdown_hook,
             bool& client_connected,
             const uint16_t timeout);
@@ -70,6 +71,7 @@ private:
     std::thread opcua_client_async_thread_;
     uint16_t run_async_timeout_ = 0;
     bool opcua_client_connected_ = false;
+    rti::ddsopcua::utils::ReconnectConfig reconnect_cfg_;
 
 };
 

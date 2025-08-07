@@ -23,7 +23,7 @@
 #include "plugins/adapters/OpcUaConnection.hpp"
 
 namespace rti { namespace ddsopcua { namespace adapters {
-
+    
 OpcUaConnection::OpcUaConnection(
         const DdsOpcUaAdapterProperty& adapter_property,
         const rti::routing::PropertySet& connection_property)
@@ -38,6 +38,11 @@ OpcUaConnection::OpcUaConnection(
             config::XmlTransformationParams ::
                     DDSOPCUA_OPCUA_CONNECTION_FQN_PROPERTY);
 
+    // Get the server URL from the connection property
+    std::string server_uri = connection_property_.at(
+            config::XmlTransformationParams ::
+                    DDSOPCUA_OPCUA_CONNECTION_SERVER_URL_PROPERTY);
+
     // Configure new OPC UA Client
     opcua::sdk::client::ClientProperty client_property;
     config::XmlOpcUaClient::get_client_property(
@@ -47,15 +52,20 @@ OpcUaConnection::OpcUaConnection(
     opcua_client_.reset(client_property);
     run_async_timeout_ = client_property.run_async_timeout;
 
-    // Connect to new OPC UA Client
-    std::string server_uri = connection_property_.at(
-            config::XmlTransformationParams ::
-                    DDSOPCUA_OPCUA_CONNECTION_SERVER_URL_PROPERTY);
+    // Configure the reconnect information
+    reconnect_cfg_.server_uri = server_uri;
+    reconnect_cfg_.max_attempts =
+                client_property.local_connection_reconnect_max_attempts;
+    reconnect_cfg_.reconnect_interval =
+            client_property.local_connection_reconnect_interval;
+
+    // Connect to new OPC UA Client    
     opcua_client_.connect(server_uri);
     opcua_client_connected_ = true;
     opcua_client_async_thread_ = std::thread(
             run_opcua_client,
             std::ref(opcua_client_),
+            std::ref(reconnect_cfg_),
             std::ref(adapter_property_.shutdown_hook()),
             std::ref(opcua_client_connected_),
             run_async_timeout_);
@@ -141,14 +151,119 @@ rti::opcua::sdk::client::Client& OpcUaConnection::connection_client()
 }
 
 void OpcUaConnection::run_opcua_client(
-            opcua::sdk::client::Client& opcua_client,
-            rti::ddsopcua::utils::ServiceShutdownHook& shutdown_hook,
-            bool& client_connected,
-            const uint16_t timeout)
+        opcua::sdk::client::Client& opcua_client,
+        rti::ddsopcua::utils::ReconnectConfig& config,
+        rti::ddsopcua::utils::ServiceShutdownHook& shutdown_hook,
+        bool& client_connected,
+        const uint16_t timeout)
 {
-    while (client_connected) {
-        opcua_client.run_iterate(timeout);
+    bool should_exit = false, disconnected = false;
+    int attempt_count = 0, last_attempt_time = 0;
+    UA_StatusCode status = UA_STATUSCODE_GOOD;
+
+    while (!should_exit) {
+        if (client_connected && !disconnected) {
+            status = opcua_client.run_iterate(timeout);
+            if (UA_STATUSCODE_GOOD == status) {
+                // Reset attempt count on successful operation
+                attempt_count = 0;
+                last_attempt_time = 0;
+            } else {
+                GATEWAYLog_local(
+                        &DDSOPCUA_LOG_ANY_ss,
+                        "Client operation failed: ",
+                        UA_StatusCode_name(status));
+
+                disconnected = true;
+                client_connected = false;
+            }
+        } else if (
+                disconnected
+                && config.max_attempts > 0) {
+            // Check if we've exceeded max attempts
+            if (attempt_count >= config.max_attempts) {
+                GATEWAYLog_local(
+                        &DDSOPCUA_LOG_ANY_s,
+                        "Max attempts reached. Abandoning reconnection.");
+                should_exit = true;
+                continue;
+            }
+
+            time_t current_time = time(nullptr);
+            int elapsed_ms =
+                    (current_time - last_attempt_time) * 1000;
+            if (last_attempt_time == 0
+                || elapsed_ms >= config.reconnect_interval) {
+                ++attempt_count;
+                last_attempt_time = current_time;
+
+                GATEWAYLog_local(
+                        &DDSOPCUA_LOG_ANY_ss,
+                        "Reconnection attempt ",
+                        std::string(
+                                std::to_string(attempt_count)
+                                + '/'
+                                + std::to_string(config.max_attempts))
+                                .c_str());
+                try {
+                    opcua_client.connect(config.server_uri);
+
+                    GATEWAYLog_local(
+                            &DDSOPCUA_LOG_ANY_s,
+                            "Reconnection successful!");
+                    disconnected = false;
+                    client_connected = true;
+                    // Don't reset attempt_count here - wait for successful
+                    // run_iterate
+                } catch (const rti::ddsopcua::GatewayException& e) {
+                    UA_StatusCode status =
+                            static_cast<UA_StatusCode>(e.error_code());
+                    GATEWAYLog_local(
+                            &DDSOPCUA_LOG_ANY_ss,
+                            "Reconnection failed: ",
+                            UA_StatusCode_name(status));
+
+                    if (attempt_count
+                        >= config.max_attempts) {
+                        GATEWAYLog_local(
+                                &DDSOPCUA_LOG_ANY_s,
+                                "Max attempts reached. Abandoning "
+                                "reconnection.");
+                        should_exit = true;
+                    }
+                }
+            } else {
+                // Wait before next attempt
+                int elapsed_ms =
+                        (current_time - last_attempt_time)
+                        * 1000;
+                int wait_ms = config.reconnect_interval - elapsed_ms;
+
+                GATEWAYLog_local(
+                        &DDSOPCUA_LOG_ANY_s,
+                        std::string(
+                                "Waiting " + std::to_string(wait_ms)
+                                + " ms before next reconnection attempt")
+                                .c_str());
+
+                std::this_thread::sleep_for(
+                        std::chrono::milliseconds(std::min(wait_ms, 1000)));
+            }
+        } else if (
+                disconnected
+                && config.max_attempts == 0) {
+            // Reconnection disabled (max_attempts = 0)
+            GATEWAYLog_local(
+                    &DDSOPCUA_LOG_ANY_s,
+                    "Disconnected and reconnection disabled. Exiting.");
+
+            should_exit = true;
+        } else {
+            // Some other state - small delay to prevent busy loop
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
     }
+
     shutdown_hook.shutdown_service();
 }
 

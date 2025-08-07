@@ -283,6 +283,19 @@ private:
     const RTI_RoutingServiceRemoteShutdownHook *shutdown_hook_;
 };
 
+class ReconnectConfig {
+public:
+    std::string server_uri;
+    int max_attempts;
+    int reconnect_interval;
+
+    ReconnectConfig()
+            : server_uri(""),
+              max_attempts(0),
+              reconnect_interval(0)
+    { }
+};
+
 }}}  // namespace rti::ddsopcua::utils
 
 #endif /* SERVICE_UTILS_HPP_ */

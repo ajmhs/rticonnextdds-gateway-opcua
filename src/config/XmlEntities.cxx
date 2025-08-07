@@ -229,6 +229,46 @@ void XmlOpcUaClient::get_client_property(
 
         client_properties.run_async_timeout = timeout;
     }
+
+    // Set disconnect action, interval and attempts if specified
+    struct RTIXMLUTILSObject *on_disconnect =
+            RTIXMLUTILSObject_getFirstChildWithTag(
+                    opcua_server_xml_object,
+                    "on_disconnect");
+    if (on_disconnect != nullptr) {
+        const char *action =
+                RTIXMLUTILSObject_getAttribute(on_disconnect, "action");
+        if (action != nullptr && strcmp(action, "retry") == 0) {
+            const char *interval =
+                    RTIXMLUTILSObject_getAttribute(on_disconnect, "interval");
+            if (interval != nullptr) {
+                uint32_t retry_interval;
+                check_type_conversion(
+                        static_cast<bool>(REDAString_strToUnsignedLong(
+                                interval,
+                                &retry_interval)),
+                        on_disconnect);
+
+                client_properties.local_connection_reconnect_interval =
+                        retry_interval;
+            }
+
+            const char *attempts = RTIXMLUTILSObject_getAttribute(
+                    on_disconnect,
+                    "max_attempts");
+            if (attempts != nullptr) {
+                uint32_t max_attempts;
+                check_type_conversion(
+                        static_cast<bool>(REDAString_strToUnsignedLong(
+                                attempts,
+                                &max_attempts)),
+                        on_disconnect);
+
+                client_properties.local_connection_reconnect_max_attempts =
+                        max_attempts;
+            }
+        }
+    }
 }
 
 void XmlOpcUaSubscription::get_subscription_property(

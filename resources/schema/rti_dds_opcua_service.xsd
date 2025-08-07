@@ -882,6 +882,28 @@
         </xs:all>
     </xs:complexType>
 
+    <!-- Define the action enumeration type -->
+    <xs:simpleType name="DisconnectActionType">
+        <xs:restriction base="xs:string">
+        <xs:enumeration value="retry"/>
+        <xs:enumeration value="exit"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <!-- Define positive integer type for interval (milliseconds) -->
+    <xs:simpleType name="DisconnectIntervalType">
+        <xs:restriction base="xs:positiveInteger">
+        <xs:minInclusive value="1"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <!-- Define non-negative integer type for max_attempts -->
+    <xs:simpleType name="DisconnectAttemptsType">
+        <xs:restriction base="xs:nonNegativeInteger">
+        <xs:minInclusive value="0"/>
+        </xs:restriction>
+    </xs:simpleType>
+
     <!-- OPC UA Connection -->
     <xs:complexType name="opcuaConnection">
         <xs:sequence>
@@ -900,6 +922,13 @@
                             minOccurs="0"
                             maxOccurs="1" /> -->
             </xs:choice>
+            <xs:element name="on_disconnect" minOccurs="0" maxOccurs="1">
+                <xs:complexType>
+                    <xs:attribute name="action" type="DisconnectActionType" default="exit"/>
+                    <xs:attribute name="interval" type="DisconnectIntervalType" default="5000"/>
+                    <xs:attribute name="max_attempts" type="DisconnectAttemptsType" default="10"/>
+                </xs:complexType>
+            </xs:element>
         </xs:sequence>
         <xs:attribute name="name" type="xs:string" use="required">
             <xs:annotation>
