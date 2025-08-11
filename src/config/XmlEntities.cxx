@@ -508,15 +508,18 @@ void XmlOpcUaEndpoint::get_publication_node_attribute_property(
         if (sample_selector != nullptr) {
             publication_properties.sample_selector_name(sample_selector);
         }
-        else {  // Try to get the new child element (attribute is deprecated)                
-            struct RTIXMLUTILSObject* sample_selector_xml =
+        else {  // Try to get the new child element (attribute is deprecated)
+            struct RTIXMLUTILSObject *sample_selector_xml =
                     RTIXMLUTILSObject_getFirstChildWithTag(
-                    node_xml,
-                    "dds_sample_selector_ref");
-
-            sample_selector = RTIXMLUTILSObject_getText(sample_selector_xml);
-            if (sample_selector != nullptr) {
-                    publication_properties.sample_selector_name(sample_selector);
+                            node_xml,
+                            "dds_sample_selector_ref");
+            if (sample_selector_xml != nullptr) {
+                sample_selector =
+                        RTIXMLUTILSObject_getText(sample_selector_xml);
+                if (sample_selector != nullptr) {
+                    publication_properties.sample_selector_name(
+                            sample_selector);
+                }
             }
         }
 
@@ -555,14 +558,16 @@ void XmlOpcUaEndpoint::get_node_attribute_property(
     node_attribute.attribute_id(attribute_id);
 
     // Sample locator
-    struct RTIXMLUTILSObject* sample_locator_xml =
-        RTIXMLUTILSObject_getFirstChildWithTag(
-        node_attribute_xml,
-        "dds_sample_locator_ref");
-
-    const char* sample_locator = RTIXMLUTILSObject_getText(sample_locator_xml);
-    if (sample_locator != nullptr) {
-        node_attribute.sample_locator_name(std::string(sample_locator));
+    struct RTIXMLUTILSObject *sample_locator_xml =
+            RTIXMLUTILSObject_getFirstChildWithTag(
+                    node_attribute_xml,
+                    "dds_sample_locator_ref");
+    if (sample_locator_xml != nullptr) {
+        const char *sample_locator =
+                RTIXMLUTILSObject_getText(sample_locator_xml);
+        if (sample_locator != nullptr) {
+            node_attribute.sample_locator_name(std::string(sample_locator));
+        }
     }
 
     // MonitoredItem NodeId
