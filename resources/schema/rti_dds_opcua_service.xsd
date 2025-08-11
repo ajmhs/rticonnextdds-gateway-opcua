@@ -765,6 +765,47 @@
         <xs:attribute name="onMissing" type="includeMissingAction" use="optional" default="log"/>
     </xs:complexType>
 
+    <!-- Anciliary Processor definition -->
+    <xs:complexType name="AnciliaryProcessor">
+        <xs:annotation>
+            <xs:documentation>
+                <![CDATA[       
+                Defines an additional processor for the routing service.
+                ]]>
+            </xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element name="dds_input" type="ddsInput" minOccurs="1" maxOccurs="1">
+                <xs:annotation>
+                    <xs:documentation>
+                        <![CDATA[
+                        Configures a subscription to a DDS Topic
+                        ]]>
+                    </xs:documentation>
+                    </xs:annotation>
+            </xs:element>
+            <xs:element name="processor" type="xs:string" minOccurs="1" maxOccurs="1">
+                <xs:annotation>
+                    <xs:documentation>
+                        <![CDATA[
+                        Name of the processor to be used for this input.
+                        The processor must be defined in the plugin library.
+                        ]]>
+                    </xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="dds_output" type="ddsOutput" minOccurs="1" maxOccurs="1">
+                <xs:annotation>
+                    <xs:documentation>
+                        <![CDATA[
+                        Configures a publication to a DDS Topic
+                        ]]>
+                    </xs:documentation>                
+                </xs:annotation>
+            </xs:element>
+        </xs:sequence>
+    </xs:complexType>
+
     <!-- OPC UA to DDS Bridge -->
     <xs:complexType name="opcua2DdsBridge">
         <xs:sequence>
@@ -845,6 +886,18 @@
                             <![CDATA[
                             Include an external file at bridge scope containing
                             publication and subscription sections
+                            ]]>
+                        </xs:documentation>
+                    </xs:annotation>
+                </xs:element>
+                <xs:element name="anciliary_processor"
+                            minOccurs="0"
+                            maxOccurs="unbounded"
+                            type="AnciliaryProcessor">
+                    <xs:annotation>
+                        <xs:documentation>
+                            <![CDATA[
+                            Defines an additional processor for the routing service.
                             ]]>
                         </xs:documentation>
                     </xs:annotation>
@@ -1156,8 +1209,51 @@
                         </xs:documentation>
                     </xs:annotation>
                 </xs:element>
+                <xs:element name="plugin_library" 
+                            minOccurs="0"
+                            maxOccurs="1"
+                            type = "processorPluginLibrary">                        
+                    <xs:annotation>
+                        <xs:documentation>
+                            <![CDATA[
+                            Library of transformation plug-ins declared at global scope
+                            ]]>
+                        </xs:documentation>
+                    </xs:annotation>
+                </xs:element>
             </xs:choice>
         </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="processorPluginLibrary">
+        <xs:annotation>
+            <xs:documentation>
+                <![CDATA[
+                Library of Routing Service Processor plug-ins.
+                ]]>
+            </xs:documentation>
+        </xs:annotation>  
+        <xs:sequence>             
+            <xs:element name="processor_plugin"
+                        type="nativePlugin"
+                        minOccurs="0"
+                        maxOccurs="unbounded">
+                <xs:annotation>
+                    <xs:documentation>
+                            <![CDATA[
+                            Entry point to load a pluggable processor
+                            ]]>
+                    </xs:documentation>
+                </xs:annotation>
+            </xs:element>
+        </xs:sequence>
+        <xs:attribute name="name" type="xs:string" use="required">
+            <xs:annotation>
+                <xs:documentation>
+                    <![CDATA[Processor Library Name]]>
+                </xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
     </xs:complexType>
 
     <xs:element name="dds"  type="ddsOpcUaGateway"/>

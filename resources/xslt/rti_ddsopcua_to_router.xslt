@@ -152,6 +152,7 @@
                 </xsl:for-each>
             </xsl:element>
             <xsl:copy-of select="qos_library"/>
+            <xsl:copy-of select="plugin_library"/>
             <xsl:apply-templates select="ddsopcua_service" />
         </xsl:element>
     </xsl:template>
@@ -421,7 +422,8 @@
     </xsl:template>
 
     <xsl:template name="DdsInput">
-        <xsl:element name="dds_input">
+        <xsl:param name="element-name" select="'dds_input'"/>
+        <xsl:element name="{$element-name}">
             <xsl:attribute name="name">
                 <xsl:value-of select="./@name" />
             </xsl:attribute>
@@ -439,7 +441,8 @@
     </xsl:template>
 
     <xsl:template name="DdsOutput">
-        <xsl:element name="dds_output">
+        <xsl:param name="element-name" select="'dds_output'"/>
+        <xsl:element name="{$element-name}">
             <xsl:attribute name="name">
                 <xsl:value-of select="./@name" />
             </xsl:attribute>
@@ -707,7 +710,29 @@
                     <xsl:with-param name="opcua_to_dds_bridge_name"
                                     select="./@name" />
                 </xsl:call-template>
+                <xsl:call-template name="DdsProcessors" />
             </xsl:element>
+        </xsl:for-each>
+    </xsl:template>
+
+    <!-- 
+        Template: Generates the <topic_route> tag
+    -->
+    <xsl:template name="DdsProcessors">
+        <xsl:for-each select="./anciliary_processor">
+            <topic_route name="topic_route_{position()}">
+                <xsl:for-each select="dds_input">
+                    <xsl:call-template name="DdsInput">
+                        <xsl:with-param name="element-name">input</xsl:with-param>
+                    </xsl:call-template>                    
+                </xsl:for-each>
+                <processor plugin_name="{normalize-space(processor)}"/>
+                <xsl:for-each select="dds_output">
+                    <xsl:call-template name="DdsOutput">
+                        <xsl:with-param name="element-name">output</xsl:with-param>
+                    </xsl:call-template>
+                </xsl:for-each>
+            </topic_route>
         </xsl:for-each>
     </xsl:template>
 
