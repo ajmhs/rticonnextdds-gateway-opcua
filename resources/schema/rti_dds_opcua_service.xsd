@@ -775,7 +775,7 @@
             </xs:documentation>
         </xs:annotation>
         <xs:sequence>
-            <xs:element name="dds_input" type="ddsInput" minOccurs="1" maxOccurs="1">
+            <xs:element name="dds_input" type="ddsInput" minOccurs="1" maxOccurs="unbounded">
                 <xs:annotation>
                     <xs:documentation>
                         <![CDATA[
@@ -794,7 +794,7 @@
                     </xs:documentation>
                 </xs:annotation>
             </xs:element>
-            <xs:element name="dds_output" type="ddsOutput" minOccurs="1" maxOccurs="1">
+            <xs:element name="dds_output" type="ddsOutput" minOccurs="1" maxOccurs="unbounded">
                 <xs:annotation>
                     <xs:documentation>
                         <![CDATA[

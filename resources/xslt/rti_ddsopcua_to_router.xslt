@@ -720,13 +720,13 @@
     -->
     <xsl:template name="DdsProcessors">
         <xsl:for-each select="./anciliary_processor">
-            <topic_route name="topic_route_{position()}">
+            <topic_route name="processor_route_{position()}">
+                <processor plugin_name="{normalize-space(processor)}"/>
                 <xsl:for-each select="dds_input">
                     <xsl:call-template name="DdsInput">
                         <xsl:with-param name="element-name">input</xsl:with-param>
                     </xsl:call-template>                    
-                </xsl:for-each>
-                <processor plugin_name="{normalize-space(processor)}"/>
+                </xsl:for-each>                
                 <xsl:for-each select="dds_output">
                     <xsl:call-template name="DdsOutput">
                         <xsl:with-param name="element-name">output</xsl:with-param>

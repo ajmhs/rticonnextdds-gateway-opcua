@@ -259,8 +259,8 @@ void OpcUaConnection::run_opcua_client(
 
             should_exit = true;
         } else {
-            // Some other state - small delay to prevent busy loop
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            // shutting down or a state we can't handle
+            should_exit = true;
         }
     }
 
