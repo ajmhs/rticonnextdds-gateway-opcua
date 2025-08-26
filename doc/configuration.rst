@@ -175,6 +175,16 @@ tags allowed within the root ``<dds>`` tag.
         Extensible Markup Language (XML), in the RTI Connext DDS
         Core Libraries User's Manual <>`.
       - 0..*
+    * - :lirtep:`<include>`
+      - Includes the contents of another XML file at the location of this tag.
+        The included file must contain only tags that are valid within the
+        ``<dds>`` root tag.
+        See :numref:`section-include-tag`.
+      - 0..*
+    * - :litrep:`<plugin_library>`
+      - Library of transformation plug-ins declared at global scope.
+        See :numref:`section-plugin-library-tag`.
+      - 0..1
     * - :litrep:`<ddsopcua_service>`
       - **Required.** |br|
         Specifies an *OPC UA/DDS Gateway* configuration.
@@ -192,6 +202,162 @@ tags allowed within the root ``<dds>`` tag.
                 </ddsopcua_service>
 
       - 1..*
+
+.. _section-include-tag:
+
+Include Tag
+-----------
+
+An optional tag that includes the contents of another XML file at the location 
+of the include tag. These tags are valid at the top level within the ``<dds>`` 
+tag or within a ``<ddsopcua_service>`` tag or within an ``<opcua_to_dds_bridge>``
+tag. There are several attributes that can be used with this tag:
+
+.. list-table:: Include Tag Attributes
+    :name: TableIncludeTag
+    :widths: 20 65 15
+    :header-rows: 1
+    :class: longtable
+
+    * - Attribute
+      - Description
+      - Required
+    * - :litrep:`file`
+      - Path to the XML file to include.
+      - Yes
+    * - :litrep:`base`
+      - Can be one of three values: "relative", "root", or "absolute".
+        This attribute specifies how to interpret the path provided in the
+        ``file`` attribute.
+        - If ``base="relative"``, the path is relative to the current file.
+        - If ``base="root"``, the path is relative to the root of the project.
+        - If ``base="absolute"``, the path is interpreted as an absolute path.
+        If this attribute is not provided, it defaults to
+        ``base="relative"``.
+      - No
+    * - :litrep:`onMissing`
+      - Can be one of three values: "ignore", "log", or "error".
+        This attribute specifies what to do if the file specified in the
+        ``file`` attribute is not found.
+        - If ``onMissing="ignore"``, the include is skipped without any notification.
+        - If ``onMissing="log"``, a warning is logged, but the process continues.
+        - If ``onMissing="error"``, an error is raised, and the process stops.
+        If this attribute is not provided, it defaults to
+        ``onMissing="log"``.
+      - No
+
+Example: Basic include with default settings
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. code-block:: xml
+    <include file="external-config.xml" />
+
+Example: Include with explicit base path
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. code-block:: xml
+    <include file="configs/bridge-settings.xml" base="root" />
+
+Example: Include with custom missing file handling
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. code-block:: xml
+    <include file="optional-config.xml" onMissing="ignore" />
+
+Example: Include with custom missing file handling
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. code-block:: xml
+
+    <include file="/etc/myapp/global-config.xml" 
+             base="absolute" 
+             onMissing="error" />
+
+Example: Multiple includes
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. code-block:: xml
+    <include file="publications.xml" />
+    <include file="subscriptions.xml" />
+    <include file="settings.xml" base="root" onMissing="ignore" />
+
+
+.. _section-plugin-library-tag:
+
+Plugin Library Tag
+------------------
+
+The ``<plugin_library>`` tag is used to register and configure pluggable 
+processor components. These plugins extend the functionality of the 
+*OPC UA/DDS Gateway* by allowing additional custom data processing, integration
+with external systems, or data transformation. 
+
+Example: Syntax for Declaring a Plugin Library
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. code-block:: xml
+
+<plugin_library name="MyPluginLib">
+    <processor_plugin name="MyProcessor">
+        <dll>myprocessor</dll>
+        <create_function>MyProcessor_create_processor_plugin</create_function>
+    </processor_plugin>
+</plugin_library>
+
+See `link here <https://community.rti.com/static/documentation/connext-dds/7.5.0/doc/manuals/connext_dds_professional/services/routing_service/controlling_data.html#develop-a-custom-processor>`_ for more details on creating and using plugins.
+
+.. _section-ancilliary-processor-tag:
+
+Ancilliary Processor Tag
+------------------------
+
+In this example we define a processor whose input is CameraDDSInput, the processor is defined at MyProcessorLib::CameraProcessor and the output is CameraDDSOutput. 
+The processor may be used to perform additional processing on data flowing through the bridge, for example filtering, aggregation, or transformation of data.
+Using multiple ancilliary processors in a single bridge is supported, and can be used to create processing pipelines.
+
+.. list-table:: Tags in the Ancilliary Processor Configuration
+    :name: TableAncilliaryProcessorTag
+    :widths: 25 60 15
+    :header-rows: 1
+    :class: longtable
+
+    * - Tags within :litrep:`<anciliary_processor>`
+      - Description
+      - Multiplicity
+    * - :litrep:`<dds_input>`
+      - Reference to a DDS Input (a DDS Topic) that provides data to the processor.
+
+        Attributes
+            - ``name``: Uniquely identifies a DDS Input. **Required**.
+            - ``domain_participant_ref``: Name of the DDS
+              *DomainParticipant* that will instantiate the DDS *Topic* and
+              internal *DataReader*. **Required**.        
+      - 1..*
+    * - :litrep:`<processor>`
+      - The custom Processor is specified with the <processor> tag which must 
+        contain the qualified name of an existing processor plugin within a 
+        plugin library. The qualified name is built using the values from the 
+        name attributes of the plugin library and plugin element. 
+      - 1
+    * - :lirtep:`<dds_output>`
+      - Reference to a DDS Output (a DDS Topic) that receives data from the processor.
+
+        Attributes
+            - ``name``: Uniquely identifies a DDS Output. **Required**.
+            - ``domain_participant_ref``: Name of the DDS
+              *DomainParticipant* that will instantiate the DDS *Topic* and
+              internal *DataWriter*. **Required**.
+        See :numref:`section-include-tag`.
+      - 1
+
+Example: Syntax for Declaring an Ancilliary Processor
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. code-block:: xml
+  <anciliary_processor>
+    <dds_input name="CameraDDSInput" domain_participant_ref="CameraDomainParticipant">
+      <topic_name>CameraMonitorTopic</topic_name>
+      <registered_type_name>CameraControl</registered_type_name>
+    </dds_input>
+    <processor>MyProcessorLib::CameraProcessor</processor>
+    <dds_output name="CameraDDSOutput" domain_participant_ref="CameraDomainParticipant">
+      <topic_name>CameraSpecialTopic</topic_name>
+      <registered_type_name>CameraControl</registered_type_name>
+    </dds_output>
+  </anciliary_processor>
 
 .. _section-config-ddsopcua-service-tag:
 
@@ -287,6 +453,13 @@ The following diagram describes the tags allowed within a
         See :numref:`section-opcua_to_dds_bridge-tag`.
       - 1
 
+    * - :litrep:`<include>`
+      - Includes the contents of another XML file at the location of this tag.
+        The included file must contain only tags that are valid within the
+        ``<ddsopcua_service>`` tag.
+        See :numref:`section-include-tag`.
+      - 0..*
+
 Example:  Specify an OPC UA/DDS Gateway Configuration in XML
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -329,6 +502,21 @@ OPC UA Connection Tag
     * - :litrep:`<secure_channel_lifetime>`
       - Configures the lifetime of the secure channel with the OPC UA server
         in milliseconds.
+      - 0..1
+    * - :litrep:`<on_disconnect>`
+      - Configures the behavior of the *OPC UA/DDS Gateway* when the
+        connection to the OPC UA Server is lost.
+
+        Attributes
+            - ``action``: Can be one of two values: "retry" or "exit".
+            - ``interval``: Number of milliseconds to wait between attempts to
+              reconnect to the OPC UA Server. Defaults to 5000 ms.
+            - ``max_attempts``: Maximum number of attempts to reconnect to the
+              OPC UA Server. Defaults to 10 attempts. 
+
+        Example
+            .. code-block:: xml
+                <on_disconnect action="retry" interval="5000" max_attempts="10"/>
       - 0..1
 
 .. _section-config-domainparticipant-tag:
@@ -434,7 +622,7 @@ OPC UA to DDS Bridge Tag
                     </publication>
                 </opcua_connection>
 
-        See :numref:`section-subscription-tag`.
+        See :numref:`section-publication-tag`.
       - 0..*
 
     * - :litrep:`<publisher_qos>`
@@ -446,6 +634,18 @@ OPC UA to DDS Bridge Tag
       - Configures the Subscriber QoS of the DDS Subscriber for every DDS
         DataReader associated with a DDS Input within the OPC UA to DDS Bridge.
       - 0..1
+    
+    * - :litrep:`<include>`
+      - Includes the contents of another XML file at the location of this tag.
+        The included file must contain only tags that are valid within the
+        ``<opcua_to_dds_bridge>`` tag.
+        See :numref:`section-include-tag`.
+      - 0..*
+    * - :litrep:`<ancilliary_processor>`
+      - Configures an ancilliary processor that can be used to perform
+        additional processing on data flowing through the bridge.
+        See :numref:`section-ancilliary-processor-tag`.
+      - 0..*
 
 .. _section-service-set-tag:
 
@@ -542,6 +742,11 @@ Subscription Tag
 
         See :numref:`section-dds-output-tag`.
       - 1
+    * - :litrep:`<configuration_variables>`
+      - Defines variables that can be used to parameterize the configuration
+        of the Subscription and its child tags.
+        See :numref:`section-configuration-variables-tag`.
+      - 0..1
 
 .. _section-opcua-input-tag:
 
@@ -606,6 +811,37 @@ OPC UA Input Tag
 
         See :numref:`section-data-item-tag`.
       - 1
+    * - :litrep:`<sample_locators>`
+      - **Optional**. |br|
+        Configures the list of locators. A locator serves a similar purpose 
+        as a sample selector, providing an additional value to be published
+        alongside the data samples. This can be useful for identifying the
+        source or context of the data establishing a mapping between OPC UA
+        and DDS instances is by storing the appropriate key inside here rather
+        than in the OPC UA server itself and then mapping it to the corresponding
+        key in the DDS data model.
+        See :numref:`section-sample-locators-tag`.
+      - 0..1
+
+.. _section-sample-locators-tag:
+
+Sample Locators Tag
+"""""""""""""""""""
+
+Locators are analgous to sample selectors in that they provide an additional
+value to be published alongside the data samples. 
+
+Example
+.. code-block:: xml
+  <sample_locators>
+    <locator name="Camera_id_1">
+      <field_name>cameraId</field_name>
+      <value>${camera_id}</value>
+    </locator>
+  </sample_locators>
+
+Referenced by the :numref:`section-opcua-input-tag`.
+
 
 .. _section-data-item-tag:
 
@@ -628,7 +864,9 @@ Monitored Items Tag
       - **Required**. |br|
         Provides a list of Node Attributes to monitor in the remote OPC UA
         Server and maps each attribute to one of the fields of the DDS *Topic*
-        associated with the DDS Output.
+        associated with the DDS Output. The child tag called ``<dds_sample_locator_ref>``
+        can be used to associate a locator with the monitored item, which will
+        be published alongside the data value.
 
         Attributes
             - ``dds_topic_field_name``: Fully-qualified name of the DDS
@@ -647,6 +885,7 @@ Monitored Items Tag
                 <opcua_input name="MyOutput">
                     <monitored_items>
                         <node_attribute dds_topic_field_name="my_boolean">
+                            <dds_sample_locator_ref>Camera_id_1</dds_sample_locator_ref>
                             <!-- ... -->
                         </node_attribute>
                         <node_attribute dds_topic_field_name="my_string">
@@ -778,6 +1017,8 @@ Example DDS Output Configuration
             </datawriter_qos>
         </dds_output>
 
+.. _section-publication-tag:
+
 Publication Tag
 ---------------
 
@@ -843,6 +1084,48 @@ Publication Tag
 
         See :numref:`section-opcua-output-tag`.
       - 1
+    * - :litrep:`<configuration_variables>`
+      - Defines variables that can be used to parameterize the configuration
+        of the Publication and its child tags.
+        See :numref:`section-configuration-variables-tag`.
+      - 0..1
+
+
+.. _section-configuration-variables-tag:
+Declares variables that can be used to parameterize the configuration of
+the Subscription or Publication and its child tags. Any child tag with a text
+element in the form ``${variable_name}`` will have that text replaced
+with the attribute value of the ``value`` attribute from a ``<variable>`` tag
+with a matching ``name`` attribute. Variables are declared within a 
+``<configuration_variables>`` tag.
+
+.. list-table:: Configuration Variables Tag
+    :name: TableConfigurationVariablesTag
+    :widths: 20 65 15
+    :header-rows: 1
+    :class: longtable
+
+    * - Tags within :litrep:`<configuration_variables>`
+      - Description
+      - Multiplicity
+    * - :litrep:`<element>`
+      - **Required**. |br|
+        Declares a named variable and value
+
+        Attributes
+            - ``name``: Uniquely identifies a variable. **Required**.
+            - ``value``: Value assigned to the variable. **Required**.
+
+        Example
+            .. code-block:: xml
+
+                <configuration_variables>
+                    <variable name="ATLTUAE" value="42"/>
+                    <variable name="MyTypeName" value="84"/>
+                </configuration_variables>
+
+      - 0..*
+
 
 .. _section-dds-input-tag:
 
@@ -997,6 +1280,8 @@ NodeAttributes Tag
               the sample passes the filter expression. Without a selector
               reference, the Node Attribute will be updated every time the DDS
               Input receives a new sample. **Optional**.
+              This attribute is supported, but deprecated in favour of the child 
+              element of the same name.
 
         Example
             .. code-block:: xml
@@ -1008,6 +1293,7 @@ NodeAttributes Tag
                             <!-- ... -->
                         </node_attribute>
                         <node_attribute dds_topic_field_name="position">
+                            <dds_sample_selector_ref>BlueSamples</dds_sample_selector_ref>
                             <!-- ... -->
                         </node_attribute>
                     </node_attributes>
