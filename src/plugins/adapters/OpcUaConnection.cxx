@@ -116,7 +116,8 @@ rti::routing::adapter::StreamReader* OpcUaConnection::create_stream_reader(
                         stream_info,
                         opcua_client_);
     } else {
-        auto opcua_subs_sr = std::shared_ptr<OpcUaSubscriptionStreamReader>(nullptr);
+        auto opcua_subs_sr =
+                std::shared_ptr<OpcUaSubscriptionStreamReader>(nullptr);
         try {
             opcua_subs_sr = std::make_shared<OpcUaSubscriptionStreamReader>(
                     adapter_property_,
@@ -141,15 +142,17 @@ rti::routing::adapter::StreamReader* OpcUaConnection::create_stream_reader(
 }
 
 void OpcUaConnection::delete_stream_reader(
-        rti::routing::adapter::StreamReader* stream_reader)
+        rti::routing::adapter::StreamReader *stream_reader)
 {
     if (stream_reader != nullptr) {
         delete stream_reader;
-            
-        auto it = std::remove_if(managed_subscribers_.begin(), managed_subscribers_.end(),
-            [stream_reader](const std::shared_ptr<OpcUaSubscriptionStreamReader>& sp) {
-                return sp.get() == stream_reader;
-            });
+
+        auto it = std::remove_if(
+                managed_subscribers_.begin(),
+                managed_subscribers_.end(),
+                [stream_reader](
+                        const std::shared_ptr<OpcUaSubscriptionStreamReader>&
+                                sp) { return sp.get() == stream_reader; });
     }
 }
 
@@ -218,12 +221,16 @@ void OpcUaConnection::run_opcua_client(
                     opcua_client.connect(config.server_uri);
 
                     // rebuild the subscriptions for the new connection.
-                    std::for_each(managed_subscribers.begin(), managed_subscribers.end(), [](const std::shared_ptr<OpcUaSubscriptionStreamReader>& reader) {
-                        if (reader) {
-                            reader->finalize_subscription();
-                            reader->initialize_subscription();
-                        }
-                    });
+                    std::for_each(
+                            managed_subscribers.begin(),
+                            managed_subscribers.end(),
+                            [](const std::shared_ptr<
+                                    OpcUaSubscriptionStreamReader>& reader) {
+                                if (reader) {
+                                    reader->finalize_subscription();
+                                    reader->initialize_subscription();
+                                }
+                            });
 
                     GATEWAYLog_local(
                             &DDSOPCUA_LOG_ANY_s,
