@@ -26,11 +26,13 @@
 
 #include "plugins/adapters/DdsOpcUaAdapterProperty.hpp"
 #include "plugins/adapters/OpcUaAttributeServiceStreamReader.hpp"
+#include "plugins/adapters/OpcUaSubscriptionStreamReader.hpp"
 #include "opcUaSdk/OpcUaSdkClient.hpp"
 
 namespace rti { namespace ddsopcua { namespace adapters {
 
 class OpcUaConnection : public rti::routing::adapter::Connection {
+        using streamreadervector_t = std::vector<std::shared_ptr<OpcUaSubscriptionStreamReader>>;
 public:
     OpcUaConnection(
             const DdsOpcUaAdapterProperty& adapter_property,
@@ -59,6 +61,7 @@ private:
     static void run_opcua_client(
             opcua::sdk::client::Client& opcua_client,
             rti::ddsopcua::utils::ReconnectConfig& reconnect_cfg,
+            streamreadervector_t& managed_subscribers,
             rti::ddsopcua::utils::ServiceShutdownHook& shutdown_hook,
             bool& client_connected,
             const uint16_t timeout);
@@ -72,7 +75,7 @@ private:
     uint16_t run_async_timeout_ = 0;
     bool opcua_client_connected_ = false;
     rti::ddsopcua::utils::ReconnectConfig reconnect_cfg_;
-
+    streamreadervector_t managed_subscribers_;
 };
 
 }}}  // namespace rti::ddsopcua::adapters

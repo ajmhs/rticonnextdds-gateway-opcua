@@ -19,7 +19,6 @@
 #include "config/XmlTransformationParams.hpp"
 #include "plugins/adapters/DdsOpcUaAdapterProperty.hpp"
 #include "plugins/adapters/OpcUaAttributeServiceStreamWriter.hpp"
-#include "plugins/adapters/OpcUaSubscriptionStreamReader.hpp"
 #include "plugins/adapters/OpcUaConnection.hpp"
 
 namespace rti { namespace ddsopcua { namespace adapters {
@@ -66,6 +65,7 @@ OpcUaConnection::OpcUaConnection(
             run_opcua_client,
             std::ref(opcua_client_),
             std::ref(reconnect_cfg_),
+            std::ref(managed_subscribers_),
             std::ref(adapter_property_.shutdown_hook()),
             std::ref(opcua_client_connected_),
             run_async_timeout_);
@@ -116,15 +116,16 @@ rti::routing::adapter::StreamReader* OpcUaConnection::create_stream_reader(
                         stream_info,
                         opcua_client_);
     } else {
-        OpcUaSubscriptionStreamReader* opcua_subs_sr = nullptr;
+        auto opcua_subs_sr = std::shared_ptr<OpcUaSubscriptionStreamReader>(nullptr);
         try {
-            opcua_subs_sr = new OpcUaSubscriptionStreamReader(
+            opcua_subs_sr = std::make_shared<OpcUaSubscriptionStreamReader>(
                     adapter_property_,
                     stream_info,
                     stream_reader_property,
                     listener,
                     opcua_client_);
             opcua_subs_sr->initialize_subscription();
+            managed_subscribers_.push_back(opcua_subs_sr);
         } catch (const std::exception& e) {
             GATEWAYLog_exception(&DDSOPCUA_LOG_ANY_s, e.what());
             if (opcua_subs_sr != nullptr) {
@@ -133,8 +134,8 @@ rti::routing::adapter::StreamReader* OpcUaConnection::create_stream_reader(
             return nullptr;
         }
 
-        stream_reader = opcua_subs_sr;
-    }
+        stream_reader = opcua_subs_sr.get();
+    }    
 
     return stream_reader;
 }
@@ -142,7 +143,14 @@ rti::routing::adapter::StreamReader* OpcUaConnection::create_stream_reader(
 void OpcUaConnection::delete_stream_reader(
         rti::routing::adapter::StreamReader* stream_reader)
 {
-    delete stream_reader;
+    if (stream_reader != nullptr) {
+        delete stream_reader;
+            
+        auto it = std::remove_if(managed_subscribers_.begin(), managed_subscribers_.end(),
+            [stream_reader](const std::shared_ptr<OpcUaSubscriptionStreamReader>& sp) {
+                return sp.get() == stream_reader;
+            });
+    }
 }
 
 rti::opcua::sdk::client::Client& OpcUaConnection::connection_client()
@@ -153,6 +161,7 @@ rti::opcua::sdk::client::Client& OpcUaConnection::connection_client()
 void OpcUaConnection::run_opcua_client(
         opcua::sdk::client::Client& opcua_client,
         rti::ddsopcua::utils::ReconnectConfig& config,
+        streamreadervector_t& managed_subscribers,
         rti::ddsopcua::utils::ServiceShutdownHook& shutdown_hook,
         bool& client_connected,
         const uint16_t timeout)
@@ -207,6 +216,14 @@ void OpcUaConnection::run_opcua_client(
                                 .c_str());
                 try {
                     opcua_client.connect(config.server_uri);
+
+                    // rebuild the subscriptions for the new connection.
+                    std::for_each(managed_subscribers.begin(), managed_subscribers.end(), [](const std::shared_ptr<OpcUaSubscriptionStreamReader>& reader) {
+                        if (reader) {
+                            reader->finalize_subscription();
+                            reader->initialize_subscription();
+                        }
+                    });
 
                     GATEWAYLog_local(
                             &DDSOPCUA_LOG_ANY_s,
