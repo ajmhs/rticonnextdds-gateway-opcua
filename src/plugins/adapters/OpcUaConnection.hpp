@@ -32,7 +32,9 @@
 namespace rti { namespace ddsopcua { namespace adapters {
 
 class OpcUaConnection : public rti::routing::adapter::Connection {
-        using streamreadervector_t = std::vector<std::shared_ptr<OpcUaSubscriptionStreamReader>>;
+    using streamreadervector_t =
+            std::vector<std::shared_ptr<OpcUaSubscriptionStreamReader>>;
+
 public:
     OpcUaConnection(
             const DdsOpcUaAdapterProperty& adapter_property,
