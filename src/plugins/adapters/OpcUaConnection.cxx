@@ -21,6 +21,8 @@
 #include "plugins/adapters/OpcUaAttributeServiceStreamWriter.hpp"
 #include "plugins/adapters/OpcUaConnection.hpp"
 
+static rti::core::Semaphore subscribers_mutex_(RTI_OSAPI_SEMAPHORE_KIND_MUTEX);
+
 namespace rti { namespace ddsopcua { namespace adapters {
     
 OpcUaConnection::OpcUaConnection(
@@ -126,6 +128,9 @@ rti::routing::adapter::StreamReader* OpcUaConnection::create_stream_reader(
                     listener,
                     opcua_client_);
             opcua_subs_sr->initialize_subscription();
+        
+            // Add to the managed subscribers vector
+            rti::core::SemaphoreGuard mutex_guard(subscribers_mutex_);
             managed_subscribers_.push_back(opcua_subs_sr);
         } catch (const std::exception& e) {
             GATEWAYLog_exception(&DDSOPCUA_LOG_ANY_s, e.what());
@@ -146,6 +151,9 @@ void OpcUaConnection::delete_stream_reader(
 {
     if (stream_reader != nullptr) {
         delete stream_reader;
+
+        // Remove from the managed subscribers vector
+        rti::core::SemaphoreGuard mutex_guard(subscribers_mutex_);
 
         auto it = std::remove_if(
                 managed_subscribers_.begin(),
@@ -220,7 +228,8 @@ void OpcUaConnection::run_opcua_client(
                 try {
                     opcua_client.connect(config.server_uri);
 
-                    // rebuild the subscriptions for the new connection.
+                    // Rebuild the subscriptions for the new connection.
+                    rti::core::SemaphoreGuard mutex_guard(subscribers_mutex_);
                     std::for_each(
                             managed_subscribers.begin(),
                             managed_subscribers.end(),
