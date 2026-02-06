@@ -151,6 +151,7 @@
                     <xsl:copy-of select="./*"/>
                 </xsl:for-each>
             </xsl:element>
+            <xsl:copy-of select="configuration_variables"/>
             <xsl:copy-of select="qos_library"/>
             <xsl:copy-of select="plugin_library"/>
             <xsl:apply-templates select="ddsopcua_service" />

@@ -552,35 +552,9 @@
         </xs:complexContent>
     </xs:complexType>
 
-    <xs:complexType name="ConfigurationVariablesType">
-        <xs:sequence>
-            <xs:element name="element" type="VariableElementType" maxOccurs="unbounded"/>
-        </xs:sequence>
-    </xs:complexType>
-
-    <xs:complexType name="VariableElementType">
-        <xs:sequence>
-            <xs:element name="name" type="xs:string" minOccurs="1" maxOccurs="1"/>
-            <xs:element name="value" type="xs:string" minOccurs="1" maxOccurs="1"/>
-        </xs:sequence>
-    </xs:complexType>
-
     <!-- Mapping of an OPC UA Input to a DDS Output -->
     <xs:complexType name="opcuaSubscription">
         <xs:sequence>
-            <xs:element name="configuration_variables"
-                        type="ConfigurationVariablesType"
-                        minOccurs="0"
-                        maxOccurs="1">
-                <xs:annotation>
-                    <xs:documentation>
-                        <![CDATA[
-                        Configuration variables that can be used to
-                        substituted in the subscription fields.
-                        ]]>
-                    </xs:documentation>
-                </xs:annotation>
-            </xs:element>
             <xs:choice maxOccurs="unbounded">                
                 <xs:element name="opcua_input"
                             type="opcuaInput">
@@ -620,19 +594,6 @@
     <!-- Mapping of a DDS Input to an OPC UA Output -->
     <xs:complexType name="opcUaPublication">
         <xs:sequence>
-            <xs:element name="configuration_variables"
-                        type="ConfigurationVariablesType"
-                        minOccurs="0"
-                        maxOccurs="1">
-                <xs:annotation>
-                    <xs:documentation>
-                        <![CDATA[
-                        Configuration variables that can be used to
-                        substituted in the subscription fields.
-                        ]]>
-                    </xs:documentation>
-                </xs:annotation>
-            </xs:element>
             <xs:choice maxOccurs="unbounded">
                 <xs:element name="dds_input"
                             type="ddsInput">
@@ -1152,6 +1113,18 @@
     <xs:complexType name="ddsOpcUaGateway">
         <xs:sequence>
             <xs:choice maxOccurs="unbounded">
+                <xs:element name="configuration_variables" type="KeyValuePairSeq">
+                    <xs:annotation>
+                        <xs:documentation>
+                                <![CDATA[
+                                Defines a set of default values for user variables.
+                                The values specified in this section can be overridden
+                                by command-line arguments, Library API, or
+                                environment variables.
+                                ]]>
+                        </xs:documentation>
+                    </xs:annotation>
+                </xs:element>
                 <xs:element name="types">
                     <xs:annotation>
                         <xs:documentation>

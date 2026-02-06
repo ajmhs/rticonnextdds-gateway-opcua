@@ -80,14 +80,9 @@ public:
 
     void validate(RTIXMLUTILSObject* xml_object);
 
-    const std::string& service_tag();
-    const std::string& opcua2ddsbridge_tag();
-    const std::string& include_tag();
-    static const std::string& service_variables_tag();
-    static const std::string& variables_element_tag();
-    const std::string& bridge_publication_tag();
-    const std::string& bridge_subscription_tag();
-
+    static const std::string& service_tag();
+    static const std::string& opcua2ddsbridge_tag();
+    static const std::string& include_tag();
 
     // Static strings for configuration files
     static const std::string& path_to_module_xml();
@@ -96,11 +91,6 @@ public:
     static const std::string& user_configuration_file_name();
 
 private:
-
-    void parse_include_files(const std::string& source_file);
-    void parse_service_includes(const std::string& source_file);
-    void parse_bridge_includes(RTIXMLUTILSObject* service_object, const std::string& source_file);
-    void resolve_variables();
     void process_loaded_xml(RTIXMLUTILSObject* xml_object);
 
 private:
