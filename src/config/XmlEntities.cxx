@@ -507,8 +507,7 @@ void XmlOpcUaEndpoint::get_publication_node_attribute_property(
                 "dds_sample_selector_ref");
         if (sample_selector != nullptr) {
             publication_properties.sample_selector_name(sample_selector);
-        }
-        else {  // Try to get the new child element (attribute is deprecated)
+        } else {  // Try to get the new child element (attribute is deprecated)
             struct RTIXMLUTILSObject *sample_selector_xml =
                     RTIXMLUTILSObject_getFirstChildWithTag(
                             node_xml,
