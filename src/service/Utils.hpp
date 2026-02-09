@@ -29,7 +29,7 @@
 #include <rti/core/Semaphore.hpp>
 
 #include <rti/ddsopcua/DdsOpcUaGatewayException.hpp>
-
+#include <rti/apputils/util/Path.hpp>
 #include "log/LogMsg.hpp"
 
 
@@ -59,95 +59,20 @@ inline std::string normalize_path(const std::string& file_name)
     return normalized;
 }
 
-#if __cplusplus >= 201703L
 inline std::string dirname(const std::string& file_name)
 {
     if (file_name.empty()) {
         return ".";
     }
 
-    std::filesystem::path p(file_name);
-    auto parent = p.parent_path();
+    rti::apputils::util::Path path = rti::apputils::util::Path(file_name);
 
-    if (parent.empty()) {
-        return ".";
-    }
-
-    return parent.string();
+    // Get all splits and reconstruct directory path
+    std::vector<std::string> splits = path.split();
+    return rti::apputils::util::Path::from_splits(
+        std::vector<std::string>(splits.begin(), splits.end() - 1)
+    );
 }
-#else
-inline std::string dirname(const std::string& file_name)
-{
-    if (file_name.empty()) {
-        return ".";
-    }
-
-    // Make a copy to work with
-    std::string p = normalize_path(file_name);
-
-    // Remove trailing separators (but preserve root)
-    while (p.length() > 1 && (p.back() == '/' || p.back() == '\\')) {
-        p.pop_back();
-    }
-
-    // Handle root cases
-    if (p == "/" || p == "\\") {
-        return p;
-    }
-
-    // Handle Windows drive root (C:, D:, etc.)
-    if (p.length() == 2 && p[1] == ':') {
-        return p + (file_name.find('\\') != std::string::npos ? "\\" : "/");
-    }
-
-    // Handle Windows UNC root (\\server or \\server\share)
-    if (p.length() >= 2 && p[0] == '\\' && p[1] == '\\') {
-        size_t first_sep = p.find('\\', 2);
-        if (first_sep == std::string::npos) {
-            return p;  // Just \\server
-        }
-        size_t second_sep = p.find('\\', first_sep + 1);
-        if (second_sep == std::string::npos) {
-            return p;  // Just \\server\share
-        }
-    }
-
-    // Find the last directory separator
-    size_t last_sep = std::string::npos;
-    for (size_t i = p.length(); i > 0; --i) {
-        if (p[i - 1] == '/' || p[i - 1] == '\\') {
-            last_sep = i - 1;
-            break;
-        }
-    }
-
-    // No separator found - current directory
-    if (last_sep == std::string::npos) {
-        return ".";
-    }
-
-    // Handle root directory
-    if (last_sep == 0) {
-        return std::string(1, p[0]);  // Return "/" or "\"
-    }
-
-    // Handle Windows drive with separator (C:\)
-    if (last_sep == 2 && p[1] == ':') {
-        return p.substr(0, 3);
-    }
-
-    // Return directory portion
-    std::string result = p.substr(0, last_sep);
-
-    // Remove any trailing separators from result (except for root)
-    while (result.length() > 1
-           && (result.back() == '/' || result.back() == '\\')) {
-        result.pop_back();
-    }
-
-    return result;
-}
-#endif
 
 RTIBool RTIOsapiUtility_getFilePath(
         char *path,
