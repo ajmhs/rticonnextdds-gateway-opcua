@@ -129,15 +129,15 @@ void XmlDdsEndpoint::get_sample_selectors(
 void XmlDdsEndpoint::get_sample_locators(
         XmlDdsEndpoint::stringpairmap_t& sample_locators,
         RTIXMLUTILSObject* xml_root,
-        const std::string& dds_input_xml_fqn)
+        const std::string& opcua_subscription_xml_fqn)
 {
-    struct RTIXMLUTILSObject* dds_input_xml_object =
-            RTIXMLUTILSObject_lookUp(xml_root, dds_input_xml_fqn.c_str());
-    xml_object_check_lookup(dds_input_xml_object, xml_root);
+    struct RTIXMLUTILSObject* opcua_subscription_xml_object =
+            RTIXMLUTILSObject_lookUp(xml_root, opcua_subscription_xml_fqn.c_str());
+    xml_object_check_lookup(opcua_subscription_xml_object, xml_root);
 
     RTIXMLUTILSObject* sample_locators_xml_object =
             RTIXMLUTILSObject_getFirstChildWithTag(
-                    dds_input_xml_object,
+                    opcua_subscription_xml_object,
                     "sample_locators");
     if (sample_locators_xml_object == nullptr) {
         return;

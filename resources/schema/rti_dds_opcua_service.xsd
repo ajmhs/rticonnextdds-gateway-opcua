@@ -251,6 +251,21 @@
                         </xs:documentation>
                     </xs:annotation>
                 </xs:element>
+                <xs:element name="sample_locators"
+                        type="ddsSampleLocatorSeq"
+                        minOccurs="0"
+                        maxOccurs="1">
+                        <xs:annotation>
+                            <xs:documentation>
+                                <![CDATA[
+                                Pre-registers a number of sample locators
+                                that allow choosing which additional DDS
+                                element is written when writing a sample
+                                from OPC UA data.
+                                ]]>
+                            </xs:documentation>
+                        </xs:annotation>
+                    </xs:element>
             </xs:choice>
         </xs:sequence>
         <xs:attribute name="name" type="xs:string" use="required">
@@ -500,21 +515,6 @@
         <xs:complexContent>
             <xs:extension base="ddsEndpoint">
                 <xs:sequence>
-                    <xs:element name="sample_locators"
-                        type="ddsSampleLocatorSeq"
-                        minOccurs="0"
-                        maxOccurs="1">
-                        <xs:annotation>
-                            <xs:documentation>
-                                <![CDATA[
-                                Pre-registers a number of sample locators
-                                that allow choosing which additional DDS 
-                                element is written when writing a sample 
-                                from OPC UA data.
-                                ]]>
-                            </xs:documentation>
-                        </xs:annotation>
-                    </xs:element>                        
                     <xs:element name="datawriter_qos"
                                 type="dataWriterQosProfileChild"
                                 minOccurs="0">

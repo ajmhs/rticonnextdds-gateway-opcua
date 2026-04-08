@@ -836,7 +836,7 @@ Example
   <sample_locators>
     <locator name="Camera_id_1">
       <field_name>cameraId</field_name>
-      <value>${camera_id}</value>
+      <value>$(camera_id)</value>
     </locator>
   </sample_locators>
 
@@ -1094,8 +1094,8 @@ Publication Tag
 .. _section-configuration-variables-tag:
 Declares variables that can be used to parameterize the configuration of
 the Subscription or Publication and its child tags. Any child tag with a text
-element in the form ``${variable_name}`` will have that text replaced
-with the attribute value of the ``value`` attribute from a ``<variable>`` tag
+element in the form ``$(variable_name)`` will have that text replaced
+with the contents of the ``value`` node text from an ``<element>`` tag
 with a matching ``name`` attribute. Variables are declared within a 
 ``<configuration_variables>`` tag.
 
@@ -1120,8 +1120,16 @@ with a matching ``name`` attribute. Variables are declared within a
             .. code-block:: xml
 
                 <configuration_variables>
-                    <variable name="ATLTUAE" value="42"/>
-                    <variable name="MyTypeName" value="84"/>
+                  <value>
+                    <element>
+                      <name>PRIMARY_CAMERA_ID</name>
+                      <value>42</value>
+                    </element>
+                    <element>
+                      <name>SECONDARY_CAMERA_ID</name>
+                      <value>76</value>
+                    </element>
+                  </value>
                 </configuration_variables>
 
       - 0..*
