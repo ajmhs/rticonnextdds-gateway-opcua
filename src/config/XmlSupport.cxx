@@ -30,6 +30,8 @@
 #include "XmlTransformationParams.hpp"
 #include "RtiXmlUtilsDecl.hpp"
 
+static const size_t max_file_size = 1024 * 1024; // 1 MB
+
 namespace rti { namespace ddsopcua { namespace config {
 
 STATIC_CONST_STRING_DEFINITION(
@@ -204,10 +206,11 @@ static void process_include(
     const char *base = RTIXMLUTILSObject_getAttribute(inc_ele, "base");
 
     std::string normalized_file_name;
+    std::string source_dir = utils::dirname(source_file);
     if (base == nullptr || (base != nullptr && strcmp(base, "relative") == 0)) {
         // Relative path, prepend the file path from the XML root
         normalized_file_name = utils::normalize_path(
-                utils::dirname(source_file) + '/' + file_name);
+                source_dir + '/' + file_name);
     } else if (strcmp(base, "root") == 0) {
         // Root path, prepend the executable path
         normalized_file_name = utils::normalize_path(
@@ -217,54 +220,87 @@ static void process_include(
         normalized_file_name = utils::normalize_path(file_name);
     }
 
-    GATEWAYLog_warn(
-            &DDSOPCUA_LOG_PARSER_LOAD_FILE_s,
-            normalized_file_name.c_str());
-
-    struct RTIXMLUTILSObject *incl_root = nullptr;
-    if (!RTIXMLUTILSParser_parseUrlGroupList(
-                &incl_root,
-                normalized_file_name.c_str())) {
+    if (!utils::file_exists(normalized_file_name)) {
         const char *on_missing =
                 RTIXMLUTILSObject_getAttribute(inc_ele, "onMissing");
 
         if (on_missing == nullptr
-            || (on_missing != nullptr && strcmp(on_missing, "log") == 0)) {
-            GATEWAYLog_warn(
-                    &DDSOPCUA_LOG_PARSER_PARSE_FILE_FAILURE_s,
-                    normalized_file_name.c_str());
-
-        } else if (strcmp(on_missing, "error") == 0) {
+            || (on_missing != nullptr && strcmp(on_missing, "error") == 0)) {
             RTI_THROW_GATEWAY_EXCEPTION(
                     &DDSOPCUA_LOG_PARSER_PARSE_FILE_FAILURE_s,
                     normalized_file_name.c_str());
+        } else if (strcmp(on_missing, "log") == 0) {
+            GATEWAYLog_warn(
+                    &DDSOPCUA_LOG_PARSER_PARSE_FILE_FAILURE_s,
+                    normalized_file_name.c_str());
         }
+    } else {  // before we process this file, it must pass several checks:
+        bool is_symlink = false;
+        std::uintmax_t file_size = 0;
 
-        return;  // Skip this include if it fails and the defined action is not
-                 // to throw
-    }
-
-    bool error = false;
-    // Iterate over all the children of the include element and copy them to the
-    // merge target
-    for (auto *incl_child = RTIXMLUTILSObject_getFirstChild(incl_root);
-         incl_child;
-         incl_child = RTIXMLUTILSObject_getNextSibling(incl_child)) {
-        if (!RTIXMLUTILSObject_copyAsChild(merge_target, incl_child)) {
-            error = true;
-            break;
+        // 1. The file has to be within the same directory or a subdirectory of
+        // the including file (to prevent including files from arbitrary
+        // locations in the filesystem)
+        if (!utils::file_on_path(normalized_file_name, source_dir)) {
+            RTI_THROW_GATEWAY_EXCEPTION(
+                    &DDSOPCUA_LOG_PARSER_PARSE_FILE_FAILURE_s,
+                    normalized_file_name.c_str(),
+                    "Include file path must be within source file directory");
         }
-    }
+        // 2. The file must not resolve to a symlink (to prevent including files
+        // from arbitrary locations in the filesystem)
+        else if (utils::file_is_symlink(normalized_file_name, is_symlink)
+                    && is_symlink) {
+            RTI_THROW_GATEWAY_EXCEPTION(
+                    &DDSOPCUA_LOG_PARSER_PARSE_FILE_FAILURE_s,
+                    normalized_file_name.c_str(),
+                    "Include file cannot be a symlink");
+        }
+        // 3. The file must be smaller than a certain size (to prevent DoS
+        // attacks by including very large files)
+        else if (utils::get_file_size(normalized_file_name, file_size)
+                    && file_size > max_file_size) {
+            RTI_THROW_GATEWAY_EXCEPTION(
+                    &DDSOPCUA_LOG_PARSER_PARSE_FILE_FAILURE_s,
+                    normalized_file_name.c_str(),
+                    "Include file is too large (1 MB limit)");
+        } else {  // The file passes all checks, process the include
+            GATEWAYLog_warn(
+                    &DDSOPCUA_LOG_PARSER_LOAD_FILE_s,
+                    normalized_file_name.c_str());
 
-    // Free the included XML object
-    RTIXMLUTILSParser_freeDom(incl_root);
+            struct RTIXMLUTILSObject *incl_root = nullptr;
+            // DTD processing (XXE attacks) for included files is disabled
+            // thanks to ROUTING-1353
+            if (RTIXMLUTILSParser_parseFile(
+                        &incl_root,
+                        normalized_file_name.c_str())) {
+                bool error = false;
+                for (auto *incl_child =
+                             RTIXMLUTILSObject_getFirstChild(incl_root);
+                     incl_child;
+                     incl_child =
+                             RTIXMLUTILSObject_getNextSibling(incl_child)) {
+                    if (!RTIXMLUTILSObject_copyAsChild(
+                                merge_target,
+                                incl_child)) {
+                        error = true;
+                        break;
+                    }
+                }
 
-    // If there was an error, throw an exception
-    if (error) {
-        RTI_THROW_GATEWAY_EXCEPTION(
-                &DDSOPCUA_LOG_ANY_ss,
-                "Error merging to target node with included file ",
-                normalized_file_name.c_str());
+                // Free the included XML object
+                RTIXMLUTILSParser_freeDom(incl_root);
+
+                // If there was an error, throw an exception
+                if (error) {
+                    RTI_THROW_GATEWAY_EXCEPTION(
+                            &DDSOPCUA_LOG_ANY_ss,
+                            "Error merging to target node with included file ",
+                            normalized_file_name.c_str());
+                }
+            }
+        }
     }
 }
 

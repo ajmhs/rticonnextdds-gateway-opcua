@@ -32,6 +32,15 @@
 #include <rti/apputils/util/Path.hpp>
 #include "log/LogMsg.hpp"
 
+#if __cplusplus >= 201703L
+    #include <filesystem>
+    namespace fs = std::filesystem;
+#elif __cplusplus >= 201402L
+    #include <experimental/filesystem>
+    namespace fs = std::experimental::filesystem;
+#else
+    #include <sys/stat.h>
+#endif
 
 #define STATIC_CONST_STRING_DEFINITION(classname, name, value) \
     const std::string& classname::name() \
@@ -72,6 +81,66 @@ inline std::string dirname(const std::string& file_name)
     return rti::apputils::util::Path::from_splits(
         std::vector<std::string>(splits.begin(), splits.end() - 1)
     );
+}
+
+inline bool file_is_symlink(
+        const std::string& file_name,
+        bool& is_symlink) noexcept
+{
+#if __cplusplus >= 201402L
+    std::error_code ec;
+    bool result = fs::is_symlink(file_name, ec);
+    if (ec) {
+        return false;
+    }
+    is_symlink = result;
+    return true;
+#else
+    struct stat st;
+    if (0 != lstat(file_name.c_str(), &st)) {
+        return false;
+    }
+
+    is_symlink = S_ISLNK(st.st_mode);
+    return true;
+#endif
+}
+
+inline bool get_file_size(
+        const std::string& file_name,
+        std::uintmax_t& file_size) noexcept
+{
+#if __cplusplus >= 201402L
+    std::error_code ec;
+    auto size = fs::file_size(file_name, ec);
+
+    // ec is set and size is static_cast<std::uintmax_t>(-1) on failure
+    if (ec) {
+        return false;
+    }
+    file_size = size;
+    return true;
+#else
+    struct stat st;
+    if (stat(file_name.c_str(), &st) != 0) {
+        return false;
+    }
+
+    // st_size is signed (off_t), guard against negative before casting
+    if (st.st_size < 0) {
+        return false;
+    }
+
+    file_size = static_cast<std::uintmax_t>(st.st_size);
+    return true;
+#endif
+}
+
+inline bool file_on_path(
+        const std::string& file_name,
+        const std::string& path)
+{
+    return file_name.find(path) != 0;
 }
 
 RTIBool RTIOsapiUtility_getFilePath(

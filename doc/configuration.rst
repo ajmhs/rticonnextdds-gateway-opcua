@@ -211,7 +211,11 @@ Include Tag
 An optional tag that includes the contents of another XML file at the location 
 of the include tag. These tags are valid at the top level within the ``<dds>`` 
 tag or within a ``<ddsopcua_service>`` tag or within an ``<opcua_to_dds_bridge>``
-tag. There are several attributes that can be used with this tag:
+tag. To mitigate security risks, the *OPC UA/DDS Gateway* performs several checks
+on the file to be included before processing the include tag. The include file
+must be within the same directory or a subdirectory of the including file, it
+cannot be a symlink, and it must be smaller than 1 MB in size. There are several
+attributes that can be used with this tag:
 
 .. list-table:: Include Tag Attributes
     :name: TableIncludeTag
@@ -243,7 +247,7 @@ tag. There are several attributes that can be used with this tag:
         - If ``onMissing="log"``, a warning is logged, but the process continues.
         - If ``onMissing="error"``, an error is raised, and the process stops.
         If this attribute is not provided, it defaults to
-        ``onMissing="log"``.
+        ``onMissing="error"``.
       - No
 
 Example: Basic include with default settings

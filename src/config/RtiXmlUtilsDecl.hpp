@@ -137,6 +137,10 @@ extern RTIBool RTIXMLUTILSParser_parseUrlGroupList(
         struct RTIXMLUTILSObject** root,
         const char* urlGroupList);
 
+extern RTIBool RTIXMLUTILSParser_parseFile(
+        struct RTIXMLUTILSObject **root,
+        const char *fileName);
+
 extern RTIBool RTIXMLUTILSGlobals_initialize();
 
 extern void RTIXMLUTILSGlobals_finalize();
