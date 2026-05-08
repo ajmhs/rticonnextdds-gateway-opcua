@@ -33,13 +33,17 @@
 #include "log/LogMsg.hpp"
 
 #if __cplusplus >= 201703L
-    #include <filesystem>
-    namespace fs = std::filesystem;
+  #include <filesystem>
+namespace fs = std::filesystem;
 #elif __cplusplus >= 201402L
-    #include <experimental/filesystem>
-    namespace fs = std::experimental::filesystem;
+  #include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
 #else
-    #include <sys/stat.h>
+  #include <sys/stat.h>
+  #ifdef _WIN32
+    #include <windows.h>
+    #define stat _stat64
+  #endif
 #endif
 
 #define STATIC_CONST_STRING_DEFINITION(classname, name, value) \
@@ -96,6 +100,15 @@ inline bool file_is_symlink(
     is_symlink = result;
     return true;
 #else
+  #ifdef _WIN32  // Windows: Check if file is a reparse point (which includes
+                 // symbolic links)
+    DWORD attributes = GetFileAttributesA(file_name.c_str());
+    if (attributes == INVALID_FILE_ATTRIBUTES) {
+        return false;
+    }
+    is_symlink = (attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
+    return true;
+  #else
     struct stat st;
     if (0 != lstat(file_name.c_str(), &st)) {
         return false;
@@ -103,6 +116,7 @@ inline bool file_is_symlink(
 
     is_symlink = S_ISLNK(st.st_mode);
     return true;
+  #endif
 #endif
 }
 
