@@ -52,7 +52,8 @@ public:
     NodeAttribute(const NodeAttribute& other)
             : name_(other.name()),
               node_id_(other.node_id()),
-              attribute_id_(other.attribute_id())
+              attribute_id_(other.attribute_id()),
+              sample_locator_name_(other.sample_locator_name())
     {
     }
 
@@ -91,11 +92,21 @@ public:
         return attribute_id_.value();
     }
 
+    void sample_locator_name(const std::string& name)
+    {
+        sample_locator_name_ = name;
+    }
+
+    const std::string& sample_locator_name() const
+    {
+        return sample_locator_name_;
+    }
 
 private:
     std::string name_;
     sdk::types::NodeId node_id_;
     sdk::types::AttributeId attribute_id_;
+    std::string sample_locator_name_;
 };
 
 class MonitoringProperty {

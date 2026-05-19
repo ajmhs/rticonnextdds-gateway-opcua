@@ -24,6 +24,7 @@
 #include "config/XmlEntities.hpp"
 #include "config/XmlTransformationParams.hpp"
 #include "conversion/OpcUa2DdsDynamicDataConversions.hpp"
+#include "conversion/DdsDynamicDataUtils.hpp"
 #include "log/LogMsg.hpp"
 #include "opcUaSdk/OpcUaSdkClient.hpp"
 #include "opcUaSdk/OpcUaSdkClientProperty.hpp"
@@ -62,6 +63,12 @@ OpcUaSubscriptionStreamReader::OpcUaSubscriptionStreamReader(
             subscription_property_,
             adapter_property.xml_root(),
             opcua_subscription_xml_fqn);
+
+    // Read the locators
+    config::XmlDdsEndpoint::get_sample_locators(
+        sample_locators_, 
+        adapter_property.xml_root(),
+        opcua_subscription_xml_fqn);
 
     config::XmlOpcUaEndpoint::get_subscription_node_attribute_property(
             node_attributes_,
@@ -102,6 +109,22 @@ void OpcUaSubscriptionStreamReader::initialize_subscription()
                     data_samples_.at(0),
                     *variant.get(),
                     monitored_item.name());
+        }
+
+        // If the node attribute has a sample locator, set it in the sample.
+        if (!monitored_item.sample_locator_name().empty()) {
+            auto it = sample_locators_.find(monitored_item.sample_locator_name());
+            if (it != sample_locators_.end()) {
+
+                try { // Set sample locator
+                    rti::ddsopcua::conversion::set_dynamic_member_from_string(
+                        data_samples_.at(0),
+                        it->second.first, it->second.second);
+                }
+                catch (const std::exception& e) {
+                    GATEWAYLog_exception(&DDSOPCUA_LOG_ANY_FAILURE_s, e.what());
+                }
+            }
         }
 
         // Add monitored item

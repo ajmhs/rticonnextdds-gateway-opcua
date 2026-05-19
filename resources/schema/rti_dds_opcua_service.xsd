@@ -96,6 +96,26 @@
                     </xs:annotation>
                 </xs:element>
             </xs:choice>
+            <xs:choice minOccurs="0" maxOccurs="1">
+                <xs:element name="dds_sample_selector_ref"
+                        type="xs:string">
+                    <xs:annotation>
+                        <xs:documentation>
+                            <![CDATA[Name of the DDS sample selector with which
+                            the NodeAttribute is associated.]]>
+                        </xs:documentation>
+                    </xs:annotation>
+                </xs:element>
+                <xs:element name="dds_sample_locator_ref"
+                        type="xs:string">
+                    <xs:annotation>
+                        <xs:documentation>
+                            <![CDATA[Name of the DDS sample locator with which
+                            the NodeAttribute is associated.]]>
+                        </xs:documentation>
+                    </xs:annotation>
+                </xs:element>
+            </xs:choice>
         </xs:sequence>
         <xs:attribute name="dds_topic_field_name"
                       type="xs:string"
@@ -106,14 +126,15 @@
                     the NodeAttribute is associated.]]>
                 </xs:documentation>
             </xs:annotation>
-        </xs:attribute>
+        </xs:attribute>        
         <xs:attribute name="dds_sample_selector_ref"
                       type="xs:string"
                       use="optional">
             <xs:annotation>
                 <xs:documentation>
                     <![CDATA[Name of the DDS sample selector with which
-                    the NodeAttribute is associated.]]>
+                    the NodeAttribute is associated. 
+                    DEPRECATED IN FAVOUR OF ELEMENT TYPE OF SAME NAME]]>
                 </xs:documentation>
             </xs:annotation>
         </xs:attribute>
@@ -230,6 +251,21 @@
                         </xs:documentation>
                     </xs:annotation>
                 </xs:element>
+                <xs:element name="sample_locators"
+                        type="ddsSampleLocatorSeq"
+                        minOccurs="0"
+                        maxOccurs="1">
+                        <xs:annotation>
+                            <xs:documentation>
+                                <![CDATA[
+                                Pre-registers a number of sample locators
+                                that allow choosing which additional DDS
+                                element is written when writing a sample
+                                from OPC UA data.
+                                ]]>
+                            </xs:documentation>
+                        </xs:annotation>
+                    </xs:element>
             </xs:choice>
         </xs:sequence>
         <xs:attribute name="name" type="xs:string" use="required">
@@ -323,6 +359,59 @@
                     Defines a sample selector. A sample selector provides a
                     mechanism to select which samples are read from the
                     DataReader's cache using a filter expression.
+                    ]]>
+                    </xs:documentation>
+                </xs:annotation>
+            </xs:element>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="ddsSampleLocator">
+        <xs:sequence>
+            <xs:element name="field_name" type="xs:string">
+                <xs:annotation>
+                    <xs:documentation>
+                        <![CDATA[
+                        Name of the field to write value to
+                        ]]>
+                    </xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="value" type="xs:string">
+                <xs:annotation>
+                    <xs:documentation>
+                        <![CDATA[
+                        Value to write to field_name
+                        ]]>
+                    </xs:documentation>
+                </xs:annotation>
+            </xs:element>
+        </xs:sequence>
+        <xs:attribute name="name"
+                      type="xs:string"
+                      use="required">
+            <xs:annotation>
+                <xs:documentation>
+                    <![CDATA[
+                    Sample selector name.
+                    ]]>
+                </xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+    </xs:complexType>    
+
+    <xs:complexType name="ddsSampleLocatorSeq">
+        <xs:sequence>
+            <xs:element name="locator"
+                        type="ddsSampleLocator"
+                        minOccurs="0"
+                        maxOccurs="unbounded">
+                <xs:annotation>
+                    <xs:documentation>
+                    <![CDATA[
+                    Defines a sample locator. A sample locator provides a
+                    mechanism to write an additional a DDS field when 
+                    publishing data from the OPC UA gateway onto the databus.
                     ]]>
                     </xs:documentation>
                 </xs:annotation>
@@ -466,7 +555,7 @@
     <!-- Mapping of an OPC UA Input to a DDS Output -->
     <xs:complexType name="opcuaSubscription">
         <xs:sequence>
-            <xs:choice maxOccurs="unbounded">
+            <xs:choice maxOccurs="unbounded">                
                 <xs:element name="opcua_input"
                             type="opcuaInput">
                     <xs:annotation>
@@ -596,6 +685,87 @@
         </xs:attribute>
     </xs:complexType>
 
+    <xs:simpleType name="includeBaseType">
+        <xs:restriction base="xs:string">
+            <xs:annotation>
+                <xs:documentation>
+                    <![CDATA[ 
+                    relative : Relative to the current file
+                    root : Relative to the root of the project
+                    absolute : Absolute path
+                    ]]>
+                </xs:documentation>
+            </xs:annotation>
+            <xs:enumeration value="relative"/>
+            <xs:enumeration value="root"/>
+            <xs:enumeration value="absolute"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="includeMissingAction">
+        <xs:restriction base="xs:string">
+            <xs:annotation>
+                <xs:documentation>
+                    <![CDATA[ 
+                    ignore : Ignore missing include files
+                    log : Log a warning if the include file is missing
+                    error : Create an error condition if the include file is missing
+                    ]]>
+                </xs:documentation>
+            </xs:annotation>
+            <xs:enumeration value="ignore"/>
+            <xs:enumeration value="log"/>
+            <xs:enumeration value="error"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <!-- Include initial type of file -->    
+    <xs:complexType name="includeFileType">
+        <xs:attribute name="file" type="xs:string" use="required"/>
+        <xs:attribute name="base" type="includeBaseType" use="optional" default="relative"/>
+        <xs:attribute name="onMissing" type="includeMissingAction" use="optional" default="log"/>
+    </xs:complexType>
+
+    <!-- Anciliary Processor definition -->
+    <xs:complexType name="AnciliaryProcessor">
+        <xs:annotation>
+            <xs:documentation>
+                <![CDATA[       
+                Defines an additional processor for the routing service.
+                ]]>
+            </xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element name="dds_input" type="ddsInput" minOccurs="1" maxOccurs="unbounded">
+                <xs:annotation>
+                    <xs:documentation>
+                        <![CDATA[
+                        Configures a subscription to a DDS Topic
+                        ]]>
+                    </xs:documentation>
+                    </xs:annotation>
+            </xs:element>
+            <xs:element name="processor" type="xs:string" minOccurs="1" maxOccurs="1">
+                <xs:annotation>
+                    <xs:documentation>
+                        <![CDATA[
+                        Name of the processor to be used for this input.
+                        The processor must be defined in the plugin library.
+                        ]]>
+                    </xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element name="dds_output" type="ddsOutput" minOccurs="1" maxOccurs="unbounded">
+                <xs:annotation>
+                    <xs:documentation>
+                        <![CDATA[
+                        Configures a publication to a DDS Topic
+                        ]]>
+                    </xs:documentation>                
+                </xs:annotation>
+            </xs:element>
+        </xs:sequence>
+    </xs:complexType>
 
     <!-- OPC UA to DDS Bridge -->
     <xs:complexType name="opcua2DdsBridge">
@@ -668,6 +838,31 @@
                         </xs:documentation>
                     </xs:annotation>
                 </xs:element>
+                <xs:element name="include"
+                            minOccurs="0"
+                            maxOccurs="unbounded"
+                            type="includeFileType">
+                    <xs:annotation>
+                        <xs:documentation>
+                            <![CDATA[
+                            Include an external file at bridge scope containing
+                            publication and subscription sections
+                            ]]>
+                        </xs:documentation>
+                    </xs:annotation>
+                </xs:element>
+                <xs:element name="anciliary_processor"
+                            minOccurs="0"
+                            maxOccurs="unbounded"
+                            type="AnciliaryProcessor">
+                    <xs:annotation>
+                        <xs:documentation>
+                            <![CDATA[
+                            Defines an additional processor for the routing service.
+                            ]]>
+                        </xs:documentation>
+                    </xs:annotation>
+                </xs:element>
             </xs:choice>
         </xs:sequence>
 
@@ -701,6 +896,28 @@
         </xs:all>
     </xs:complexType>
 
+    <!-- Define the action enumeration type -->
+    <xs:simpleType name="DisconnectActionType">
+        <xs:restriction base="xs:string">
+        <xs:enumeration value="retry"/>
+        <xs:enumeration value="exit"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <!-- Define positive integer type for interval (milliseconds) -->
+    <xs:simpleType name="DisconnectIntervalType">
+        <xs:restriction base="xs:positiveInteger">
+        <xs:minInclusive value="1"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <!-- Define non-negative integer type for max_attempts -->
+    <xs:simpleType name="DisconnectAttemptsType">
+        <xs:restriction base="xs:nonNegativeInteger">
+        <xs:minInclusive value="0"/>
+        </xs:restriction>
+    </xs:simpleType>
+
     <!-- OPC UA Connection -->
     <xs:complexType name="opcuaConnection">
         <xs:sequence>
@@ -719,6 +936,13 @@
                             minOccurs="0"
                             maxOccurs="1" /> -->
             </xs:choice>
+            <xs:element name="on_disconnect" minOccurs="0" maxOccurs="1">
+                <xs:complexType>
+                    <xs:attribute name="action" type="DisconnectActionType" default="exit"/>
+                    <xs:attribute name="interval" type="DisconnectIntervalType" default="5000"/>
+                    <xs:attribute name="max_attempts" type="DisconnectAttemptsType" default="10"/>
+                </xs:complexType>
+            </xs:element>
         </xs:sequence>
         <xs:attribute name="name" type="xs:string" use="required">
             <xs:annotation>
@@ -861,6 +1085,19 @@
                         </xs:documentation>
                     </xs:annotation>
                 </xs:element>
+                <xs:element name="include"
+                            minOccurs="0"
+                            maxOccurs="unbounded"
+                            type="includeFileType">
+                    <xs:annotation>
+                        <xs:documentation>
+                            <![CDATA[
+                            Includes an external file at service scope for this section
+                            containing domain participants
+                            ]]>
+                        </xs:documentation>
+                    </xs:annotation>
+                </xs:element>
             </xs:choice>
         </xs:sequence>
         <xs:attribute name="name" type="xs:string" use="required">
@@ -876,6 +1113,18 @@
     <xs:complexType name="ddsOpcUaGateway">
         <xs:sequence>
             <xs:choice maxOccurs="unbounded">
+                <xs:element name="configuration_variables" type="KeyValuePairSeq">
+                    <xs:annotation>
+                        <xs:documentation>
+                                <![CDATA[
+                                Defines a set of default values for user variables.
+                                The values specified in this section can be overridden
+                                by command-line arguments, Library API, or
+                                environment variables.
+                                ]]>
+                        </xs:documentation>
+                    </xs:annotation>
+                </xs:element>
                 <xs:element name="types">
                     <xs:annotation>
                         <xs:documentation>
@@ -920,8 +1169,64 @@
                         </xs:documentation>
                     </xs:annotation>
                 </xs:element>
+                <xs:element name="include"
+                            minOccurs="0"
+                            maxOccurs="unbounded"
+                            type="includeFileType">
+                    <xs:annotation>
+                        <xs:documentation>
+                            <![CDATA[
+                            Includes an external file at global scope, i.e for
+                            importing types that apply across the entire system
+                            ]]>
+                        </xs:documentation>
+                    </xs:annotation>
+                </xs:element>
+                <xs:element name="plugin_library" 
+                            minOccurs="0"
+                            maxOccurs="1"
+                            type = "processorPluginLibrary">                        
+                    <xs:annotation>
+                        <xs:documentation>
+                            <![CDATA[
+                            Library of transformation plug-ins declared at global scope
+                            ]]>
+                        </xs:documentation>
+                    </xs:annotation>
+                </xs:element>
             </xs:choice>
         </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="processorPluginLibrary">
+        <xs:annotation>
+            <xs:documentation>
+                <![CDATA[
+                Library of Routing Service Processor plug-ins.
+                ]]>
+            </xs:documentation>
+        </xs:annotation>  
+        <xs:sequence>             
+            <xs:element name="processor_plugin"
+                        type="nativePlugin"
+                        minOccurs="0"
+                        maxOccurs="unbounded">
+                <xs:annotation>
+                    <xs:documentation>
+                            <![CDATA[
+                            Entry point to load a pluggable processor
+                            ]]>
+                    </xs:documentation>
+                </xs:annotation>
+            </xs:element>
+        </xs:sequence>
+        <xs:attribute name="name" type="xs:string" use="required">
+            <xs:annotation>
+                <xs:documentation>
+                    <![CDATA[Processor Library Name]]>
+                </xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
     </xs:complexType>
 
     <xs:element name="dds"  type="ddsOpcUaGateway"/>

@@ -29,15 +29,28 @@
 #include <rti/core/Semaphore.hpp>
 
 #include <rti/ddsopcua/DdsOpcUaGatewayException.hpp>
-
+#include <rti/apputils/util/Path.hpp>
 #include "log/LogMsg.hpp"
 
+#if __cplusplus >= 201703L
+  #include <filesystem>
+namespace fs = std::filesystem;
+#elif __cplusplus >= 201402L
+  #include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
+#else
+  #include <sys/stat.h>
+  #ifdef _WIN32
+    #include <windows.h>
+    #define stat _stat64
+  #endif
+#endif
 
 #define STATIC_CONST_STRING_DEFINITION(classname, name, value) \
-    const std::string& classname::name()                       \
-    {                                                          \
-        static std::string name##var(value);                   \
-        return name##var;                                      \
+    const std::string& classname::name() \
+    { \
+        static std::string name##var(value); \
+        return name##var; \
     }
 
 #define DDSOPCUA_FILE_PATH_MAX_LENGTH (4096)
@@ -59,13 +72,102 @@ inline std::string normalize_path(const std::string& file_name)
     return normalized;
 }
 
+inline std::string dirname(const std::string& file_name)
+{
+    if (file_name.empty()) {
+        return ".";
+    }
+
+    rti::apputils::util::Path path = rti::apputils::util::Path(file_name);
+
+    // Get all splits and reconstruct directory path
+    std::vector<std::string> splits = path.split();
+    return rti::apputils::util::Path::from_splits(
+        std::vector<std::string>(splits.begin(), splits.end() - 1)
+    );
+}
+
+inline bool file_is_symlink(
+        const std::string& file_name,
+        bool& is_symlink) noexcept
+{
+#if __cplusplus >= 201402L
+    std::error_code ec;
+    bool result = fs::is_symlink(file_name, ec);
+    if (ec) {
+        return false;
+    }
+    is_symlink = result;
+    return true;
+#else
+  #ifdef _WIN32  // Windows: Check if file is a reparse point (which includes
+                 // symbolic links)
+    DWORD attributes = GetFileAttributesA(file_name.c_str());
+    if (attributes == INVALID_FILE_ATTRIBUTES) {
+        return false;
+    }
+    is_symlink = (attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
+    return true;
+  #else
+    struct stat st;
+    if (0 != lstat(file_name.c_str(), &st)) {
+        return false;
+    }
+
+    is_symlink = S_ISLNK(st.st_mode);
+    return true;
+  #endif
+#endif
+}
+
+inline bool get_file_size(
+        const std::string& file_name,
+        std::uintmax_t& file_size) noexcept
+{
+#if __cplusplus >= 201402L
+    std::error_code ec;
+    auto size = fs::file_size(file_name, ec);
+
+    // ec is set and size is static_cast<std::uintmax_t>(-1) on failure
+    if (ec) {
+        return false;
+    }
+    file_size = size;
+    return true;
+#else
+    struct stat st;
+    if (stat(file_name.c_str(), &st) != 0) {
+        return false;
+    }
+
+    // st_size is signed (off_t), guard against negative before casting
+    if (st.st_size < 0) {
+        return false;
+    }
+
+    file_size = static_cast<std::uintmax_t>(st.st_size);
+    return true;
+#endif
+}
+
+inline bool file_on_path(
+        const std::string& file_name,
+        const std::string& path)
+{
+    return file_name.find(path) != 0;
+}
+
+RTIBool RTIOsapiUtility_getFilePath(
+        char *path,
+        size_t pathMaxSize,
+        const char *file);
+
 static std::string executable_path()
 {
-    char path[DDSOPCUA_FILE_PATH_MAX_LENGTH + 1] = {'\0'};
+    char path[DDSOPCUA_FILE_PATH_MAX_LENGTH + 1] = { '\0' };
     if (!RTIOsapiUtility_getSelfDirectoryPath(
-            path,
-            RTI_OSAPI_STRING_SEQ_STRING_MAX_SIZE)) {
-    }
+                path,
+                RTI_OSAPI_STRING_SEQ_STRING_MAX_SIZE)) { }
 
     return std::string(path);
 }
@@ -89,8 +191,7 @@ public:
               thread_(nullptr),
               exit_sem_(RTI_OSAPI_SEMAPHORE_KIND_BINARY),
               exception_(false)
-    {
-    }
+    { }
 
     virtual ~Thread()
     {
@@ -144,9 +245,9 @@ public:
     virtual void run() = 0;
 
 private:
-    static void* run_wrapper(void* args)
+    static void *run_wrapper(void *args)
     {
-        Thread* thread = (Thread*) args;
+        Thread *thread = (Thread *) args;
         thread->exception_ = false;
 
         try {
@@ -169,10 +270,38 @@ private:
     std::string name_;
     bool auto_join_;
     bool running_;
-    RTIOsapiThread* thread_;
+    RTIOsapiThread *thread_;
     rti::core::Semaphore exit_sem_;
     bool exception_;
     std::string exception_message_;
+};
+
+class ServiceShutdownHook {
+public:
+    ServiceShutdownHook(const RTI_RoutingServiceRemoteShutdownHook *hook)
+            : shutdown_hook_(hook)
+    { }
+
+    void shutdown_service()
+    {
+        return shutdown_hook_->on_shutdown(shutdown_hook_->shutdown_hook_data);
+    }
+
+private:
+    const RTI_RoutingServiceRemoteShutdownHook *shutdown_hook_;
+};
+
+class ReconnectConfig {
+public:
+    std::string server_uri;
+    int max_attempts;
+    int reconnect_interval;
+
+    ReconnectConfig()
+            : server_uri(""),
+              max_attempts(0),
+              reconnect_interval(0)
+    { }
 };
 
 }}}  // namespace rti::ddsopcua::utils

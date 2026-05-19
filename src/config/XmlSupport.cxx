@@ -30,6 +30,8 @@
 #include "XmlTransformationParams.hpp"
 #include "RtiXmlUtilsDecl.hpp"
 
+static const size_t max_file_size = 1024 * 1024; // 1 MB
+
 namespace rti { namespace ddsopcua { namespace config {
 
 STATIC_CONST_STRING_DEFINITION(
@@ -53,6 +55,11 @@ STATIC_CONST_STRING_DEFINITION(
         "USER_RTI_DDS_OPCUA_SERVICE.xml");
 
 STATIC_CONST_STRING_DEFINITION(XmlSupport, service_tag, "ddsopcua_service");
+STATIC_CONST_STRING_DEFINITION(
+        XmlSupport,
+        opcua2ddsbridge_tag,
+        "opcua_to_dds_bridge");
+STATIC_CONST_STRING_DEFINITION(XmlSupport, include_tag, "include");
 
 XmlSupport::XmlSupport(
         const rti::ddsopcua::GatewayProperty& properties,
@@ -61,10 +68,11 @@ XmlSupport::XmlSupport(
           validate_on_parse_(validate_on_parse),
           validator_(nullptr, RTIXMLUTILSValidator_delete),
           transformer_(nullptr, RTIXMLUTILSTransformer_delete),
-          user_env_(properties.user_environment())
+          user_env_(properties.user_environment()),
+          verbosity_(properties.verbosity())
 {
     // Register included schemas
-    RTIXMLUTILSValidator* validator = RTIXMLUTILSValidator_newFromStringArray(
+    RTIXMLUTILSValidator *validator = RTIXMLUTILSValidator_newFromStringArray(
             DDSOPCUA_XSD,
             DDSOPCUA_XSD_SIZE);
     if (validator == nullptr) {
@@ -75,7 +83,7 @@ XmlSupport::XmlSupport(
     validator_.reset(validator);
 
     // Register XSLT transformation
-    RTIXMLUTILSTransformer* trfmr = RTIXMLUTILSTransformer_newFromStringArray(
+    RTIXMLUTILSTransformer *trfmr = RTIXMLUTILSTransformer_newFromStringArray(
             DDSOPCUA_XSLT,
             DDSOPCUA_XSLT_SIZE);
     if (trfmr == nullptr) {
@@ -100,8 +108,11 @@ void XmlSupport::finalize_globals()
 }
 
 void XmlSupport::initialize_globals()
-{
-}
+{ }
+
+static void parse_include_files(
+        RTIXMLUTILSObject *xml_object,
+        const std::string& source_file);
 
 void XmlSupport::parse_file(const std::string& filename)
 {
@@ -111,21 +122,24 @@ void XmlSupport::parse_file(const std::string& filename)
             &DDSOPCUA_LOG_PARSER_LOAD_FILE_s,
             normalized_filename.c_str());
 
-    struct RTIXMLUTILSObject* xml_object = nullptr;
+    struct RTIXMLUTILSObject *xml_object = nullptr;
     if (!RTIXMLUTILSParser_parseUrlGroupList(&xml_object, filename.c_str())) {
         RTI_THROW_GATEWAY_EXCEPTION(
                 &DDSOPCUA_LOG_PARSER_PARSE_FILE_FAILURE_s,
                 normalized_filename.c_str());
     }
 
+    // Manage any include definitions in the xml
+    parse_include_files(xml_object, filename);
+
     process_loaded_xml(xml_object);
 }
 
 void XmlSupport::parse_string_array(
-        const char** string_array,
+        const char **string_array,
         int string_array_length)
 {
-    struct RTIXMLUTILSObject* xml_object = nullptr;
+    struct RTIXMLUTILSObject *xml_object = nullptr;
     if (!RTIXMLUTILSParser_parseStringArray(
                 &xml_object,
                 string_array,
@@ -139,17 +153,17 @@ void XmlSupport::parse_string_array(
 }
 
 void XmlSupport::parse_types_string_array(
-        const char** string_array,
+        const char **string_array,
         int string_array_length)
 {
-    struct RTIXMLUTILSObject* dds_xml_object = nullptr;
+    struct RTIXMLUTILSObject *dds_xml_object = nullptr;
     if (!RTIXMLUTILSParser_parseString(&dds_xml_object, "<dds/>")) {
         RTI_THROW_GATEWAY_EXCEPTION(
                 &DDSOPCUA_LOG_PARSER_PARSE_FAILURE_s,
                 "DDS Empty XML definition");
     }
 
-    struct RTIXMLUTILSObject* types_xml_object = nullptr;
+    struct RTIXMLUTILSObject *types_xml_object = nullptr;
     if (!RTIXMLUTILSParser_parseStringArray(
                 &types_xml_object,
                 string_array,
@@ -174,20 +188,234 @@ void XmlSupport::parse_types_string_array(
     process_loaded_xml(dds_xml_object);
 }
 
-void XmlSupport::process_loaded_xml(RTIXMLUTILSObject* xml_object)
+static void process_include(
+        RTIXMLUTILSObject *inc_ele,
+        const std::string& source_file,
+        RTIXMLUTILSObject *merge_target)
+{
+    const char *file_name =
+            RTIXMLUTILSObject_getAttribute(inc_ele, "file");
+
+    if (file_name == nullptr) {
+        RTI_THROW_GATEWAY_EXCEPTION(
+                &DDSOPCUA_LOG_PARSER_PARSE_FAILURE_s,
+                "Include element without 'file' attribute");
+    }
+
+    // if the include element has a base attribute, use it
+    const char *base = RTIXMLUTILSObject_getAttribute(inc_ele, "base");
+
+    std::string normalized_file_name;
+    std::string source_dir = utils::dirname(source_file);
+    if (base == nullptr || (base != nullptr && strcmp(base, "relative") == 0)) {
+        // Relative path, prepend the file path from the XML root
+        normalized_file_name = utils::normalize_path(
+                source_dir + '/' + file_name);
+    } else if (strcmp(base, "root") == 0) {
+        // Root path, prepend the executable path
+        normalized_file_name = utils::normalize_path(
+                utils::executable_path() + '/' + file_name);
+    } else if (strcmp(base, "absolute") == 0) {
+        // Absolute path, use as is
+        normalized_file_name = utils::normalize_path(file_name);
+    }
+
+    if (!utils::file_exists(normalized_file_name)) {
+        const char *on_missing =
+                RTIXMLUTILSObject_getAttribute(inc_ele, "onMissing");
+
+        if (on_missing == nullptr
+            || (on_missing != nullptr && strcmp(on_missing, "error") == 0)) {
+            RTI_THROW_GATEWAY_EXCEPTION(
+                    &DDSOPCUA_LOG_PARSER_PARSE_FILE_FAILURE_s,
+                    normalized_file_name.c_str());
+        } else if (strcmp(on_missing, "log") == 0) {
+            GATEWAYLog_warn(
+                    &DDSOPCUA_LOG_PARSER_PARSE_FILE_FAILURE_s,
+                    normalized_file_name.c_str());
+        }
+    } else {  // before we process this file, it must pass several checks:
+        bool is_symlink = false;
+        std::uintmax_t file_size = 0;
+
+        // 1. The file has to be within the same directory or a subdirectory of
+        // the including file (to prevent including files from arbitrary
+        // locations in the filesystem)
+        if (!utils::file_on_path(normalized_file_name, source_dir)) {
+            RTI_THROW_GATEWAY_EXCEPTION(
+                    &DDSOPCUA_LOG_PARSER_PARSE_FILE_FAILURE_s,
+                    normalized_file_name.c_str(),
+                    "Include file path must be within source file directory");
+        }
+        // 2. The file must not resolve to a symlink (to prevent including files
+        // from arbitrary locations in the filesystem)
+        else if (utils::file_is_symlink(normalized_file_name, is_symlink)
+                    && is_symlink) {
+            RTI_THROW_GATEWAY_EXCEPTION(
+                    &DDSOPCUA_LOG_PARSER_PARSE_FILE_FAILURE_s,
+                    normalized_file_name.c_str(),
+                    "Include file cannot be a symlink");
+        }
+        // 3. The file must be smaller than a certain size (to prevent DoS
+        // attacks by including very large files)
+        else if (utils::get_file_size(normalized_file_name, file_size)
+                    && file_size > max_file_size) {
+            RTI_THROW_GATEWAY_EXCEPTION(
+                    &DDSOPCUA_LOG_PARSER_PARSE_FILE_FAILURE_s,
+                    normalized_file_name.c_str(),
+                    "Include file is too large (1 MB limit)");
+        } else {  // The file passes all checks, process the include
+            GATEWAYLog_warn(
+                    &DDSOPCUA_LOG_PARSER_LOAD_FILE_s,
+                    normalized_file_name.c_str());
+
+            struct RTIXMLUTILSObject *incl_root = nullptr;
+            // DTD processing (XXE attacks) for included files is disabled
+            // thanks to ROUTING-1353
+            if (RTIXMLUTILSParser_parseFile(
+                        &incl_root,
+                        normalized_file_name.c_str())) {
+                bool error = false;
+                for (auto *incl_child =
+                             RTIXMLUTILSObject_getFirstChild(incl_root);
+                     incl_child;
+                     incl_child =
+                             RTIXMLUTILSObject_getNextSibling(incl_child)) {
+                    if (!RTIXMLUTILSObject_copyAsChild(
+                                merge_target,
+                                incl_child)) {
+                        error = true;
+                        break;
+                    }
+                }
+
+                // Free the included XML object
+                RTIXMLUTILSParser_freeDom(incl_root);
+
+                // If there was an error, throw an exception
+                if (error) {
+                    RTI_THROW_GATEWAY_EXCEPTION(
+                            &DDSOPCUA_LOG_ANY_ss,
+                            "Error merging to target node with included file ",
+                            normalized_file_name.c_str());
+                }
+            }
+        }
+    }
+}
+
+static void find_includes(
+        RTIXMLUTILSObject *xml_object,
+        const std::string& source_file)
+{
+    for (auto *inc_ele = RTIXMLUTILSObject_getFirstChildWithTag(
+                 xml_object,
+                 XmlSupport::include_tag().c_str());
+         inc_ele;
+         inc_ele = RTIXMLUTILSObject_getNextSiblingWithTag(
+                 inc_ele,
+                 XmlSupport::include_tag().c_str())) {
+        process_include(inc_ele, source_file, xml_object);
+    }
+}
+
+static void parse_include_files(
+        RTIXMLUTILSObject *xml_object,
+        const std::string& source_file)
+{
+    // Parse <include> elements at the global scope
+    find_includes(xml_object, source_file);
+
+    // Parse <include> elements at the service scope
+    for (auto *service = RTIXMLUTILSObject_getFirstChildWithTag(
+                 xml_object,
+                 XmlSupport::service_tag().c_str());
+         service;
+         service = RTIXMLUTILSObject_getNextSiblingWithTag(
+                 service,
+                 XmlSupport::service_tag().c_str())) {
+        find_includes(service, source_file);
+
+        // Process <include> elements at the bridge scope for this service
+        for (auto *bridge = RTIXMLUTILSObject_getFirstChildWithTag(
+                     service,
+                     XmlSupport::opcua2ddsbridge_tag().c_str());
+             bridge;
+             bridge = RTIXMLUTILSObject_getNextSiblingWithTag(
+                     bridge,
+                     XmlSupport::opcua2ddsbridge_tag().c_str())) {
+            find_includes(bridge, source_file);
+        }
+    }
+}
+
+static void parse_configuration_variables(
+        RTIXMLUTILSObject *xml_object,
+        std::map<std::string, std::string>& config_vars)
+{
+    auto *config_tag = RTIXMLUTILSObject_getFirstChildWithTag(
+            xml_object,
+            "configuration_variables");  // ROUTER_XML_SUPPORT_CONFIG_VARS_TAG
+
+    if (config_tag != nullptr) {
+        for (auto *value_tag = RTIXMLUTILSObject_getFirstChildWithTag(
+                     config_tag,
+                     "value");
+             value_tag;
+             value_tag = RTIXMLUTILSObject_getNextSiblingWithTag(
+                     value_tag,
+                     "value")) {
+            for (auto *element_tag = RTIXMLUTILSObject_getFirstChildWithTag(
+                         value_tag,
+                         "element");
+                 element_tag;
+                 element_tag = RTIXMLUTILSObject_getNextSiblingWithTag(
+                         element_tag,
+                         "element")) {
+                RTIXMLUTILSObject *var_name =
+                        RTIXMLUTILSObject_getFirstChildWithTag(
+                                element_tag,
+                                "name");
+                RTIXMLUTILSObject *var_value =
+                        RTIXMLUTILSObject_getFirstChildWithTag(
+                                element_tag,
+                                "value");
+
+                if (var_name != nullptr && var_value != nullptr) {
+                    const char *name = RTIXMLUTILSObject_getText(var_name);
+                    const char *value = RTIXMLUTILSObject_getText(var_value);
+
+                    if (name != nullptr && value != nullptr) {
+                        config_vars.insert({ name, value });
+                    }
+                }
+            }
+        }
+    }
+}
+
+void XmlSupport::process_loaded_xml(RTIXMLUTILSObject *xml_object)
 {
     bool error = false;
-    const RTILogMessage* error_template = nullptr;
-    const char* error_msg = nullptr;
+    const RTILogMessage *error_template = nullptr;
+    const char *error_msg = nullptr;
     bool free_dom = true;
     /* replace variables */
     struct RTIXMLUTILSPropertyList dictionary = { nullptr, 0, 0 };
     RTI_RoutingServiceProperties native_properties;
     RTI_RoutingServiceProperties_initialize(&native_properties);
+
+    std::map<std::string, std::string> config_vars = {user_env_};
+    // Merge the configuration variables defined in the XML with
+    // the user environment variables, giving precedence to the
+    // environment variables in case of duplicates
+    parse_configuration_variables(xml_object, config_vars);
+
     rti::routing::PropertyAdapter::add_properties_to_native(
             &native_properties,
-            user_env_);
-    dictionary._propertyArray = reinterpret_cast<RTIXMLUTILSProperty*>(
+            config_vars/*user_env_*/);
+
+    dictionary._propertyArray = reinterpret_cast<RTIXMLUTILSProperty *>(
             native_properties.properties);
     dictionary._propertyArrayLength = native_properties.count;
     if (!RTIXMLUTILSVariableExpansor_expandFromEnvironmentOrDictionary(
@@ -214,6 +442,7 @@ void XmlSupport::process_loaded_xml(RTIXMLUTILSObject* xml_object)
         error_template = &DDSOPCUA_LOG_PARSER_PARSE_FAILURE_s;
         error_msg = RTIXMLUTILSObject_getFilePath(xml_object);
     }
+
     // Make sure we always free the DOM
     if (free_dom) {
         RTIXMLUTILSParser_freeDom(xml_object);
@@ -225,9 +454,9 @@ void XmlSupport::process_loaded_xml(RTIXMLUTILSObject* xml_object)
 
 void XmlSupport::convert_xml_to_configuration_strings(
         std::vector<std::string>& cfg_strings,
-        RTIXMLUTILSObject* xml_object)
+        RTIXMLUTILSObject *xml_object)
 {
-    std::unique_ptr<char, void (*)(char*)> string_configuration(
+    std::unique_ptr<char, void (*)(char *)> string_configuration(
             RTIXMLUTILSObject_toString(xml_object),
             DDS_String_free);
     cfg_strings.resize(1);
@@ -236,7 +465,7 @@ void XmlSupport::convert_xml_to_configuration_strings(
 
 XmlSupport::native_xmlutilsobject XmlSupport::to_router_configuration()
 {
-    RTIXMLUTILSObject* transformed = RTIXMLUTILSTransformer_transformWithParams(
+    RTIXMLUTILSObject *transformed = RTIXMLUTILSTransformer_transformWithParams(
             transformer_.get(),
             xml_root_,
             &XmlTransformationParams::transformation_params()[0],
@@ -249,7 +478,11 @@ XmlSupport::native_xmlutilsobject XmlSupport::to_router_configuration()
                 "Router");
     }
 
-    // printf("%s\n", RTIXMLUTILSObject_toString(transformed));
+    // check the gateway verbosity level to decide whether to dump the
+    // transformed XML
+    if (verbosity_ >= rti::config::Verbosity::WARNING) {
+        printf("%s\n", RTIXMLUTILSObject_toString(transformed));
+    }
 
     return XmlSupport::native_xmlutilsobject(
             transformed,
@@ -308,7 +541,7 @@ bool XmlSupport::load_default_files()
 
 void XmlSupport::print_available_configurations()
 {
-    struct RTIXMLUTILSObject* xml_service = nullptr;
+    struct RTIXMLUTILSObject *xml_service = nullptr;
     int configurations_count = 0;
 
     printf("Available configurations:\n");
@@ -318,7 +551,7 @@ void XmlSupport::print_available_configurations()
             this->service_tag().c_str());
 
     while (xml_service != nullptr) {
-        const char* annotation_doc = nullptr;
+        const char *annotation_doc = nullptr;
         annotation_doc = RTIXMLUTILSObject_getAnnotationDocText(xml_service);
 
         if (*annotation_doc == '\0') {
@@ -343,12 +576,12 @@ void XmlSupport::print_available_configurations()
     }
 }
 
-RTIXMLUTILSObject* XmlSupport::xml_root() const
+RTIXMLUTILSObject *XmlSupport::xml_root() const
 {
     return xml_root_;
 }
 
-void XmlSupport::validate(RTIXMLUTILSObject* xml_object)
+void XmlSupport::validate(RTIXMLUTILSObject *xml_object)
 {
     if (!RTIXMLUTILSValidator_validate(validator_.get(), xml_object)) {
         RTI_THROW_GATEWAY_EXCEPTION(

@@ -132,6 +132,15 @@ public:
      */
     std::map<std::string, std::string>& user_environment();
 
+    /**
+     * @brief Getter (see setter with the same name)
+     */
+    rti::config::Verbosity verbosity() const;
+
+    /**
+     * @brief Set the verbosity at the gateway level.
+     */
+    GatewayProperty& verbosity(rti::config::Verbosity value);
 
 private:
     std::string cfg_file_;
@@ -141,6 +150,7 @@ private:
     std::map<std::string, std::string> user_env_;
     bool ignore_default_files_;
     static const std::string SERVICE_PLUGIN_NAME;
+    rti::config::Verbosity verbosity_;
 };
 
 }}  // namespace rti::ddsopcua

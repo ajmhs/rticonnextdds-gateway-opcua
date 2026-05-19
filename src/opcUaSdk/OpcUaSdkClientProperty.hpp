@@ -25,10 +25,13 @@ namespace rti { namespace opcua { namespace sdk { namespace client {
 
 class ClientProperty {
 public:
-    ClientProperty() : run_async_timeout(1000)
+    ClientProperty()
+            : run_async_timeout(1000),
+              local_connection_reconnect_interval(0),
+              local_connection_reconnect_max_attempts(0)
     {
-        UA_Client* client = UA_Client_new();
-        UA_ClientConfig* configuration = UA_Client_getConfig(client);
+        UA_Client *client = UA_Client_new();
+        UA_ClientConfig *configuration = UA_Client_getConfig(client);
         UA_ClientConfig_setDefault(configuration);
 
         timeout = configuration->timeout;
@@ -70,6 +73,10 @@ public:
     uint32_t local_connection_max_message_size;
     uint32_t local_connection_max_chunk_count;
     uint16_t run_async_timeout;
+    uint32_t local_connection_reconnect_interval;
+    uint32_t local_connection_reconnect_max_attempts;
+            
+
 };
 
 }}}}  // namespace rti::opcua::sdk::client
