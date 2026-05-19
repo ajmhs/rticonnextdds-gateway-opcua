@@ -41,7 +41,6 @@ ApplicationProperty::ApplicationProperty(
           shutdown_hook_(shutdown_hook)
 {
     dds_verbosity_ = rti::ddsopcua::log::dds_verbosity_from_level(1);
-    gateway_verbosity_ = rti::ddsopcua::log::service_verbosity_from_level(1);
 
     ParameterManager parameter_manager;
     parameter_manager.parse(argc, argv);
@@ -80,9 +79,9 @@ ApplicationProperty::ApplicationProperty(
         } else if (argument.name == "verbosity") {
             dds_verbosity_ = rti::ddsopcua::log::dds_verbosity_from_level(
                     static_cast<int32_t>(argument.value.int_value));
-            gateway_verbosity_ =
+            gateway_property_.verbosity(
                     rti::ddsopcua::log::service_verbosity_from_level(
-                            static_cast<int32_t>(argument.value.int_value));
+                            static_cast<int32_t>(argument.value.int_value)));
         }
     }
 }
@@ -119,7 +118,7 @@ const GatewayProperty& ApplicationProperty::gateway_property() const
 
 rti::config::Verbosity ApplicationProperty::gateway_verbosity() const
 {
-    return gateway_verbosity_;
+    return gateway_property_.verbosity();
 }
 
 const RTI_RoutingServiceHeapMonitorProperty& ApplicationProperty::

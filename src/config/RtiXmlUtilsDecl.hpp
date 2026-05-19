@@ -81,6 +81,9 @@ extern const char* RTIXMLUTILSObject_getAttribute(
         struct RTIXMLUTILSObject* self,
         const char* attributeName);
 
+extern struct RTIXMLUTILSObject* RTIXMLUTILSObject_getRoot(
+        struct RTIXMLUTILSObject* self);
+
 extern struct RTIXMLUTILSObject* RTIXMLUTILSObject_getFirstChild(
         struct RTIXMLUTILSObject* self);
 
@@ -114,6 +117,13 @@ extern struct RTIXMLUTILSObject* RTIXMLUTILSObject_copyAsChild(
         struct RTIXMLUTILSObject* self,
         struct RTIXMLUTILSObject* element);
 
+extern RTIBool RTIXMLUTILSObject_isText(
+        struct RTIXMLUTILSObject* self);
+
+extern void RTIXMLUTILSObject_setText(
+        struct RTIXMLUTILSObject* self,
+        const char* elementText);        
+
 extern RTIBool RTIXMLUTILSParser_parseStringArray(
         struct RTIXMLUTILSObject** root,
         const char* xmlStringArray[],
@@ -126,6 +136,10 @@ extern RTIBool RTIXMLUTILSParser_parseString(
 extern RTIBool RTIXMLUTILSParser_parseUrlGroupList(
         struct RTIXMLUTILSObject** root,
         const char* urlGroupList);
+
+extern RTIBool RTIXMLUTILSParser_parseFile(
+        struct RTIXMLUTILSObject **root,
+        const char *fileName);
 
 extern RTIBool RTIXMLUTILSGlobals_initialize();
 

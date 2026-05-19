@@ -19,6 +19,7 @@
 #define RTI_CONVERSIONS_DYNAMICDATAUTILS_HPP_
 
 #include <dds/core/types.hpp>
+#include <dds/core/xtypes/DynamicData.hpp>
 
 namespace rti { namespace ddsopcua { namespace conversion {
 
@@ -33,6 +34,11 @@ namespace rti { namespace ddsopcua { namespace conversion {
 void check_dynamic_data_return_code(
         DDS_ReturnCode_t retcode,
         const char* message);
+
+void set_dynamic_member_from_string(
+    dds::core::xtypes::DynamicData& data,
+    const std::string& member_name,
+    const std::string& string_value);
 
 }}}  // namespace rti::ddsopcua::conversion
 

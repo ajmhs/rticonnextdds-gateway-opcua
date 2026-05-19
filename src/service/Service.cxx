@@ -53,7 +53,8 @@ Service::Service(
         : property_(property),
           xml_support_(property),
           routing_service_property_(),
-          routing_service_(dds::core::null)
+          routing_service_(dds::core::null),
+          shutdown_hook_(shutdown_hook)
 
 {
     if (!property_.ignore_default_files()) {
@@ -144,6 +145,7 @@ void Service::print_available_configurations()
 void Service::start()
 {
     adapters::DdsOpcUaAdapterProperty adapter_property(
+            shutdown_hook_,
             xml_support_.xml_root(),
             property_.service_name());
 

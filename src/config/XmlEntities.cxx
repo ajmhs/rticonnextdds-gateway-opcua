@@ -126,6 +126,54 @@ void XmlDdsEndpoint::get_sample_selectors(
     }
 }
 
+void XmlDdsEndpoint::get_sample_locators(
+        XmlDdsEndpoint::stringpairmap_t& sample_locators,
+        RTIXMLUTILSObject* xml_root,
+        const std::string& opcua_subscription_xml_fqn)
+{
+    struct RTIXMLUTILSObject* opcua_subscription_xml_object =
+            RTIXMLUTILSObject_lookUp(xml_root, opcua_subscription_xml_fqn.c_str());
+    xml_object_check_lookup(opcua_subscription_xml_object, xml_root);
+
+    RTIXMLUTILSObject* sample_locators_xml_object =
+            RTIXMLUTILSObject_getFirstChildWithTag(
+                    opcua_subscription_xml_object,
+                    "sample_locators");
+    if (sample_locators_xml_object == nullptr) {
+        return;
+    }
+
+    RTIXMLUTILSObject* locator_xml_object =
+            RTIXMLUTILSObject_getFirstChild(sample_locators_xml_object);
+    while (locator_xml_object != nullptr) {
+        const char* locator_name =
+                RTIXMLUTILSObject_getAttribute(locator_xml_object, "name");
+        xml_object_check_lookup_attribute(
+                locator_name,
+                "name",
+                locator_xml_object);
+
+        RTIXMLUTILSObject* field_xml_object =
+                RTIXMLUTILSObject_getFirstChildWithTag(
+                        locator_xml_object,
+                        "field_name");
+        const char* field = RTIXMLUTILSObject_getText(field_xml_object);
+        check_text(field, field_xml_object);
+
+        RTIXMLUTILSObject* value_xml_object =
+                RTIXMLUTILSObject_getFirstChildWithTag(
+                        locator_xml_object,
+                        "value");
+        const char* value = RTIXMLUTILSObject_getText(value_xml_object);
+        check_text(value, value_xml_object);
+
+        sample_locators[locator_name] = XmlDdsEndpoint::stringpair_t(std::string(field), std::string(value));
+
+        locator_xml_object =
+                RTIXMLUTILSObject_getNextSibling(locator_xml_object);
+    }
+}
+
 void XmlOpcUaClient::get_client_property(
         opcua::sdk::client::ClientProperty& client_properties,
         struct RTIXMLUTILSObject* xml_root,
@@ -180,6 +228,46 @@ void XmlOpcUaClient::get_client_property(
                 run_async_timeout);
 
         client_properties.run_async_timeout = timeout;
+    }
+
+    // Set disconnect action, interval and attempts if specified
+    struct RTIXMLUTILSObject *on_disconnect =
+            RTIXMLUTILSObject_getFirstChildWithTag(
+                    opcua_server_xml_object,
+                    "on_disconnect");
+    if (on_disconnect != nullptr) {
+        const char *action =
+                RTIXMLUTILSObject_getAttribute(on_disconnect, "action");
+        if (action != nullptr && strcmp(action, "retry") == 0) {
+            const char *interval =
+                    RTIXMLUTILSObject_getAttribute(on_disconnect, "interval");
+            if (interval != nullptr) {
+                uint32_t retry_interval;
+                check_type_conversion(
+                        static_cast<bool>(REDAString_strToUnsignedLong(
+                                interval,
+                                &retry_interval)),
+                        on_disconnect);
+
+                client_properties.local_connection_reconnect_interval =
+                        retry_interval;
+            }
+
+            const char *attempts = RTIXMLUTILSObject_getAttribute(
+                    on_disconnect,
+                    "max_attempts");
+            if (attempts != nullptr) {
+                uint32_t max_attempts;
+                check_type_conversion(
+                        static_cast<bool>(REDAString_strToUnsignedLong(
+                                attempts,
+                                &max_attempts)),
+                        on_disconnect);
+
+                client_properties.local_connection_reconnect_max_attempts =
+                        max_attempts;
+            }
+        }
     }
 }
 
@@ -419,6 +507,19 @@ void XmlOpcUaEndpoint::get_publication_node_attribute_property(
                 "dds_sample_selector_ref");
         if (sample_selector != nullptr) {
             publication_properties.sample_selector_name(sample_selector);
+        } else {  // Try to get the new child element (attribute is deprecated)
+            struct RTIXMLUTILSObject *sample_selector_xml =
+                    RTIXMLUTILSObject_getFirstChildWithTag(
+                            node_xml,
+                            "dds_sample_selector_ref");
+            if (sample_selector_xml != nullptr) {
+                sample_selector =
+                        RTIXMLUTILSObject_getText(sample_selector_xml);
+                if (sample_selector != nullptr) {
+                    publication_properties.sample_selector_name(
+                            sample_selector);
+                }
+            }
         }
 
         node_attribute.publication_properties(publication_properties);
@@ -454,6 +555,19 @@ void XmlOpcUaEndpoint::get_node_attribute_property(
     check_text(attribute_id, attribute_id_xml);
 
     node_attribute.attribute_id(attribute_id);
+
+    // Sample locator
+    struct RTIXMLUTILSObject *sample_locator_xml =
+            RTIXMLUTILSObject_getFirstChildWithTag(
+                    node_attribute_xml,
+                    "dds_sample_locator_ref");
+    if (sample_locator_xml != nullptr) {
+        const char *sample_locator =
+                RTIXMLUTILSObject_getText(sample_locator_xml);
+        if (sample_locator != nullptr) {
+            node_attribute.sample_locator_name(std::string(sample_locator));
+        }
+    }
 
     // MonitoredItem NodeId
     RTIXMLUTILSObject* node_id_xml = RTIXMLUTILSObject_getFirstChildWithTag(
