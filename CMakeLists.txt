@@ -91,6 +91,8 @@ connextdds_rtiddsgen_run(
         "${CMAKE_CURRENT_BINARY_DIR}/src/conversion/"
     LANG C++11
     UNBOUNDED
+    EXTRA_ARGS
+        -standard DDS_PSM_Cxx
 )
 
 connextdds_embed_source_file(
@@ -449,6 +451,8 @@ if (RTIGATEWAY_BUILD_TESTS)
             "${CMAKE_CURRENT_BINARY_DIR}/src/test/"
         LANG C++11
         UNBOUNDED
+        EXTRA_ARGS
+            -standard DDS_PSM_Cxx
     )
 
     set(rtiddsopcua_test_sources
